@@ -360,7 +360,7 @@ const LS={
 };
 const ACCENTS={purple:'#a78bfa',blue:'#82aaff',teal:'#5edfd0',green:'#6fdc8c',yellow:'#ecc64f',orange:'#f6ad7b',pink:'#f17bb0',red:'#ef6f6f'};
 const MODE_LABEL={'ai-easy':'简单','ai-medium':'中等','ai-hard':'困难','ai-expert':'专家','pvp':'双人'};
-const SUBTITLE={'ai-easy':'人机对战 · 简单','ai-medium':'人机对战 · 中等','ai-hard':'人机对战 · 困难','ai-expert':'人机对战 · 专家','pvp':'双人同屏 · 15×15'};
+const SUBTITLE={'ai-easy':'人机对战 · 简单','ai-medium':'人机对战 · 中等','ai-hard':'人机对战 · 困难','ai-expert':'人机对战 · 专家','pvp':'双人同屏'};
 const DIFF_KEYS=['easy','medium','hard','expert'];
 
 /*CORE_START*/
@@ -371,6 +371,32 @@ let board=Array.from({length:N},()=>new Array(N).fill(EMPTY));
 let mode='ai-easy';
 
 const inB=(x,y)=>x>=0&&x<N&&y>=0&&y<N;
+
+/* ===== 盘面变更的唯一入口 =====
+   CAND1/CAND2 记录每点周围（切比雪夫距离 1、2）的棋子数，候选点生成因此退化为一次
+   225 格扫描，不必在每个搜索结点上重建 Set（原版每手要重建上万次）。
+   搜索结点的落子/撤子必须走 pushStone()，同步候选计数与 Zobrist 哈希；
+   只为算分而临时写格的函数（evalPoint / ptsToFiveThrough / blackLegality / winPointsBoth /
+   fourMoves）不改计数表——它们都不会在写格期间调用 candidates()。 */
+const CAND1=new Int16Array(N*N),CAND2=new Int16Array(N*N);
+const OFF1=[],OFF2=[];
+for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(dx||dy)OFF1.push(dx,dy);
+for(let dx=-2;dx<=2;dx++)for(let dy=-2;dy<=2;dy++)if(dx||dy)OFF2.push(dx,dy);
+function candTouch(x,y,d){
+  for(let i=0;i<OFF1.length;i+=2){const nx=x+OFF1[i],ny=y+OFF1[i+1];if(inB(nx,ny))CAND1[nx*N+ny]+=d;}
+  for(let i=0;i<OFF2.length;i+=2){const nx=x+OFF2[i],ny=y+OFF2[i+1];if(inB(nx,ny))CAND2[nx*N+ny]+=d;}
+}
+function setCell(x,y,p){board[x][y]=p;candTouch(x,y,p?1:-1);}
+function pushStone(x,y,p){setCell(x,y,p);hashPlace(x,y,p);}
+function clearBoard(){          /* 原地清零：不重新赋值 board，避免任何已持有的引用失效 */
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++)board[x][y]=EMPTY;
+  CAND1.fill(0);CAND2.fill(0);
+}
+/* 思考前与真实盘面对齐一次（读档/harness 等路径可能整体替换 board 数组） */
+function syncCand(){
+  CAND1.fill(0);CAND2.fill(0);
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)candTouch(x,y,1);
+}
 
 /* 经过 (x,y) 沿 (dx,dy) 的连子数与两端开放数（要求 board[x][y]===p） */
 function runInfo(x,y,dx,dy,p){
@@ -481,23 +507,45 @@ function isFreeThreeDir(x,y,dx,dy){
   }
   return false;
 }
+/* 沿 (dx,dy) 距 (x,y) 四格以内的同色子数（隔着空位也计入，中心 (x,y) 不计）。
+   过点 (x,y) 成「四」= 再补一子成五，那五点必在 ±4 窗口内 ⇒ 除新子外至少还要 3 子；
+   成「活三」= 补一子成双头四 ⇒ 至少还要 2 子。故它是这两个形态的下界筛：
+   计数不足即可断定该方向既无四亦无三，判定结果与原穷举完全一致，只是便宜得多。 */
+function winCount(x,y,dx,dy,p){
+  let c=0;
+  for(let o=1;o<=4;o++){
+    if(inB(x+dx*o,y+dy*o)&&board[x+dx*o][y+dy*o]===p)c++;
+    if(inB(x-dx*o,y-dy*o)&&board[x-dx*o][y-dy*o]===p)c++;
+  }
+  return c;
+}
 /* 黑棋落子禁手判定。调用前需已将黑子临时放在 (x,y)。
    返回 'win'（合法五连）/ 'overline'（长连）/ '44'（四四）/ '33'（三三）/ 'ok' */
 function blackMoveType(x,y){
-  let overline=false,five=false;
-  for(const d of DIRS){
-    const r=runInfo(x,y,d[0],d[1],BLACK)[0];
+  let overline=false,five=false,p4=0,p3=0;
+  const pot=[0,0,0,0];
+  for(let i=0;i<4;i++){
+    const dx=DIRS[i][0],dy=DIRS[i][1];
+    const r=runInfo(x,y,dx,dy,BLACK)[0];
     if(r>=6)overline=true;
     else if(r===5)five=true;
+    const w=winCount(x,y,dx,dy,BLACK);
+    pot[i]=w;
+    if(w>=3)p4++;
+    if(w>=2)p3++;
   }
   if(overline)return 'overline'; /* 长连优先于五连 */
   if(five)return 'win';
+  /* 本文件最大的热点：原版对每个候选点都要做全窗枚举（占单手可用时长的近一半），
+     而绝大多数点根本没有可能在两个方向上同时成四或成三。 */
+  if(p4<2&&p3<2)return 'ok';
   let fours=0,threes=0;
-  for(const d of DIRS){
-    if(ptsToExactlyFiveThrough(x,y,d[0],d[1])>=1){
+  for(let i=0;i<4;i++){
+    const dx=DIRS[i][0],dy=DIRS[i][1];
+    if(pot[i]>=3&&ptsToExactlyFiveThrough(x,y,dx,dy)>=1){
       fours++;
       if(fours>=2)return '44';
-    }else if(isFreeThreeDir(x,y,d[0],d[1])){ /* 同一方向是四即不再按三计 */
+    }else if(pot[i]>=2&&isFreeThreeDir(x,y,dx,dy)){ /* 同一方向是四即不再按三计 */
       threes++;
       if(threes>=2)return '33';
     }
@@ -526,30 +574,60 @@ function legalCandidatePoints(p,points){
   return legal;
 }
 /* ============ 战术搜索组件：取胜点集 / 冲四着法 / VCF静默扩展 ============ */
-/* p 方当前所有一步取胜点（黑棋只含合法恰好五连） */
-function winPointsAll(p){
-  const out=[],cands=candidates(1);
-  for(const c of cands){
-    if(board[c[0]][c[1]]!==EMPTY)continue;
-    if(p===BLACK){
-      board[c[0]][c[1]]=BLACK;
-      const t=blackMoveType(c[0],c[1]);
-      board[c[0]][c[1]]=EMPTY;
-      if(t==='win')out.push({x:c[0],y:c[1]});
-    }else{
-      board[c[0]][c[1]]=WHITE;
-      const w=isWinRun(c[0],c[1],WHITE);
-      board[c[0]][c[1]]=EMPTY;
-      if(w)out.push({x:c[0],y:c[1]});
-    }
+/* 落子后是否恰好五连（出现长连即不算赢）。与 blackMoveType==='win' 等价，
+   但省掉四四/三三的全窗枚举——只问「能不能一手取胜」时并不需要禁手细分。 */
+function blackWinAt(x,y){
+  let five=false;
+  for(const d of DIRS){
+    const c=runInfo(x,y,d[0],d[1],BLACK)[0];
+    if(c>=6)return false;
+    if(c===5)five=true;
   }
-  return out;
+  return five;
+}
+/* 一次候选扫描同时求出双方的一手取胜点：qNode 每个结点都要问两边，
+   分开扫等于把整轮形态计算做两遍。调用方只需区分 0 / 1 / ≥2，故各集计到 2 个即停。 */
+function winPointsBoth(p){
+  const op=3-p,mine=[],opp=[];
+  for(const c of candidates(1)){
+    const x=c[0],y=c[1];
+    if(board[x][y]!==EMPTY)continue;
+    if(p===BLACK){
+      board[x][y]=BLACK;
+      if(blackWinAt(x,y))mine.push({x:x,y:y});
+      board[x][y]=EMPTY;
+    }else{
+      board[x][y]=WHITE;
+      if(isWinRun(x,y,WHITE))mine.push({x:x,y:y});
+      board[x][y]=EMPTY;
+    }
+    if(op===BLACK){
+      board[x][y]=BLACK;
+      if(blackWinAt(x,y))opp.push({x:x,y:y});
+      board[x][y]=EMPTY;
+    }else{
+      board[x][y]=WHITE;
+      if(isWinRun(x,y,WHITE))opp.push({x:x,y:y});
+      board[x][y]=EMPTY;
+    }
+    if(mine.length>=2&&opp.length>=2)break;
+  }
+  return {mine:mine,opp:opp};
+}
+/* p 方当前的一步取胜点（黑棋只含合法恰好五连；至多两个已足够） */
+function winPointsAll(p){
+  return winPointsBoth(p).mine;
 }
 /* p 方的「冲四着」：落下后产生至少一个方向可在下一手取胜（黑方只含合法着法） */
 function fourMoves(p,cap){
   const cands=candidates(2),out=[];
   for(const c of cands){
     if(board[c[0]][c[1]]!==EMPTY)continue;
+    /* 与 winCount 同一个下界筛子：兵力凑不出「补一子成五」的点不可能是冲四着法，
+       先排除还能顺手省掉黑方一次禁手判定。 */
+    let fourPot=false;
+    for(const d of DIRS){if(winCount(c[0],c[1],d[0],d[1],p)>=3){fourPot=true;break;}}
+    if(!fourPot)continue;
     if(p===BLACK){
       board[c[0]][c[1]]=BLACK;
       const t=blackMoveType(c[0],c[1]);
@@ -563,7 +641,7 @@ function fourMoves(p,cap){
     board[c[0]][c[1]]=EMPTY;
     if(dirs>=1)out.push({x:c[0],y:c[1],k:(dirs>1?2:0)+(open?1:0)});
   }
-  out.sort((a,b)=>b.k-a.k);
+  out.sort((a,b)=>b.k-a.k||((a.x*16+a.y)-(b.x*16+b.y))); /* 同分按点位定序，保证可复现 */
   return out.slice(0,cap||4);
 }
 /* VCF 静默扩展：深度耗尽后，沿「冲四→强制挡」的强制线继续搜，
@@ -571,29 +649,28 @@ function fourMoves(p,cap){
 let qNodes=0;
 function qNode(p,alpha,beta,qd){
   if((++qNodes&1023)===0&&Date.now()>searchDeadline)searchAborted=true;
-  if(searchAborted)return evalBoard(p)-evalBoard(3-p);
-  const myW=winPointsAll(p);
-  if(myW.length)return 9000000+qd*10;               /* 轮到我走且有胜点 */
-  const opW=winPointsAll(3-p);
-  if(opW.length>1)return -9000000-qd*10;             /* 对方双杀点，堵不住 */
-  if(opW.length===1){                                /* 被迫单挡 */
+  if(searchAborted)return evalDiff(p);
+  const w=winPointsBoth(p);
+  if(w.mine.length)return 9000000+qd*10;             /* 轮到我走且有胜点 */
+  if(w.opp.length>1)return -9000000-qd*10;           /* 对方双杀点，堵不住 */
+  if(w.opp.length===1){                              /* 被迫单挡 */
     if(qd<=0)return -9000000;
-    const b=opW[0];
+    const b=w.opp[0];
     if(p===BLACK){const t=blackLegality(b.x,b.y);if(t!=='ok'&&t!=='win')return -9000000;} /* 无合法挡点 */
-    board[b.x][b.y]=p;
+    pushStone(b.x,b.y,p);                            /* 走 pushStone：本子树的 candidates() 必须看得见这手棋 */
     const v=-qNode(3-p,-beta,-alpha,qd-1);
-    board[b.x][b.y]=EMPTY;
+    pushStone(b.x,b.y,EMPTY);
     return v;
   }
-  const stand=evalBoard(p)-evalBoard(3-p);
+  const stand=evalDiff(p);
   if(qd<=0||stand>=beta)return stand;
   if(stand>alpha)alpha=stand;
   let best=stand;
   const fours=fourMoves(p,4);
   for(const f of fours){
-    board[f.x][f.y]=p;
+    pushStone(f.x,f.y,p);
     const v=-qNode(3-p,-beta,-Math.max(alpha,best),qd-1);
-    board[f.x][f.y]=EMPTY;
+    pushStone(f.x,f.y,EMPTY);
     if(searchAborted)return stand;
     if(v>best)best=v;
     if(best>=beta)break;
@@ -616,27 +693,32 @@ function hashFromBoard(){
   zh1=0;zh2=0;
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)hashPlace(x,y,board[x][y]);
 }
-/* 收集距离已有棋子 dist 内的空点作为候选 */
+/* 收集距离已有棋子 dist 内的空点作为候选（读 CAND 计数表，按行序输出） */
 function candidates(dist){
-  dist=dist||2;
-  const set=new Set();let any=false;
-  for(let x=0;x<N;x++)for(let y=0;y<N;y++){
-    if(board[x][y]!==EMPTY){
-      any=true;
-      for(let dx=-dist;dx<=dist;dx++)for(let dy=-dist;dy<=dist;dy++){
-        const nx=x+dx,ny=y+dy;
-        if(inB(nx,ny)&&board[nx][ny]===EMPTY)set.add(nx*16+ny);
-      }
-    }
+  const cnt=dist<=1?CAND1:CAND2,out=[];
+  for(let i=0;i<N*N;i++){
+    if(cnt[i]<=0)continue;
+    const x=(i/N)|0,y=i%N;
+    if(board[x][y]===EMPTY)out.push([x,y]);
   }
-  if(!any)return [[7,7]];
-  const out=[];for(const k of set)out.push([(k/16)|0,k%16]);
-  return out;
+  if(out.length)return out;
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)return out; /* 满盘：确无候选 */
+  return [[7,7]];                                                             /* 空盘：天元 */
 }
 function evalBoard(p){
   let s=0;
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]===p)s+=stoneScore(x,y,p);
   return s;
+}
+/* 一次全盘扫描同时得出双方形态分：静默搜索每个结点都要两边各算一遍，合并省一半 */
+function evalDiff(p){
+  let sb=0,sw=0;
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++){
+    const v=board[x][y];
+    if(v===BLACK)sb+=stoneScore(x,y,BLACK);
+    else if(v===WHITE)sw+=stoneScore(x,y,WHITE);
+  }
+  return p===BLACK?sb-sw:sw-sb;
 }
 /* p 一步取胜的点（白棋：五连及以上） */
 function fivePoint(p){
@@ -647,15 +729,14 @@ function fivePoint(p){
   }
   return null;
 }
-/* 黑棋合法的一步取胜点：恰好五连 且 不伴随长连禁手 */
+/* 黑棋合法的一步取胜点：恰好五连（长连即禁手，不在其列） */
 function blackWinPoint(){
-  const cands=candidates(1);
-  for(const c of cands){
+  for(const c of candidates(1)){
     if(board[c[0]][c[1]]!==EMPTY)continue;
     board[c[0]][c[1]]=BLACK;
-    const t=blackMoveType(c[0],c[1]);
+    const f=blackWinAt(c[0],c[1]);
     board[c[0]][c[1]]=EMPTY;
-    if(t==='win')return {x:c[0],y:c[1]};
+    if(f)return {x:c[0],y:c[1]};
   }
   return null;
 }
@@ -667,7 +748,7 @@ function orderedMoves(p,cap){
     const atk=evalPoint(c[0],c[1],p),def=evalPoint(c[0],c[1],op);
     arr.push({x:c[0],y:c[1],s:atk+def*0.85});
   }
-  arr.sort((a,b)=>b.s-a.s);
+  arr.sort((a,b)=>b.s-a.s||((a.x*16+a.y)-(b.x*16+b.y))); /* 同分按点位定序，保证可复现 */
   if(p!==BLACK)return arr.slice(0,cap);
   const legal=[];
   for(const m of arr){
@@ -682,36 +763,52 @@ function orderedMoves(p,cap){
     const atk=evalPoint(x,y,p),def=evalPoint(x,y,op);
     all.push({x,y,s:atk+def*0.85});
   }
-  all.sort((a,b)=>b.s-a.s);
+  all.sort((a,b)=>b.s-a.s||((a.x*16+a.y)-(b.x*16+b.y)));
   return all.slice(0,cap);
 }
 let searchDeadline=0,searchAborted=false;
+const VCF_PLY=10;                 /* 静默搜索（连续冲四）延伸层数 */
+/* 各难度搜索配置：d=迭代加深层数序列，t=每手时间上限(ms)，w=根节点候选宽度 */
+const AI_CFG={
+  'ai-hard':{d:[2,4],t:1200,w:12},
+  'ai-expert':{d:[2,4,6],t:3000,w:16}
+};
 function negamax(depth,alpha,beta,p,lastX,lastY){
   if(lastX>=0&&isWinRun(lastX,lastY,3-p))return -9000000-depth*1000;
-  if(Date.now()>searchDeadline){searchAborted=true;return evalBoard(p)-evalBoard(3-p);}
+  if(Date.now()>searchDeadline){searchAborted=true;return evalDiff(p);}
   /* 速胜检出：当前方有一步取胜点直接返回 */
   if((p===WHITE?fivePoint(WHITE):blackWinPoint()))return 9000000+depth*1000;
   /* 置换表探测 */
   const a0=alpha,k1=zh1^(p===WHITE?ZS1:0),k2=zh2^(p===WHITE?ZS1:0);
   const ti=(k1>>>0)&(TT_SIZE-1),e=TT[ti];
-  if(e&&e.k1===k1&&e.k2===k2&&e.dn===ttDraft&&e.d>=depth){
-    if(e.f===0)return e.v;
-    if(e.f===1&&e.v<=alpha)return e.v;
-    if(e.f===2&&e.v>=beta)return e.v;
+  let ttMove=null;
+  if(e&&e.k1===k1&&e.k2===k2&&e.dn===ttDraft){
+    if(e.d>=depth){
+      if(e.f===0)return e.v;
+      if(e.f===1&&e.v<=alpha)return e.v;
+      if(e.f===2&&e.v>=beta)return e.v;
+    }
+    if(e.m)ttMove=e.m;            /* 深度不够时只借用它记录的最佳着法 */
   }
-  if(depth<=0)return qNode(p,alpha,beta,8);
-  const moves=orderedMoves(p,depth>=3?10:9);
-  if(!moves.length)return qNode(p,alpha,beta,8);
-  let best=-Infinity;
+  if(depth<=0)return qNode(p,alpha,beta,VCF_PLY);
+  const moves=orderedMoves(p,depth>=3?12:10);
+  if(!moves.length)return qNode(p,alpha,beta,VCF_PLY);
+  if(ttMove){                     /* 上一层的 PV 先搜，剪枝才能尽早命中 */
+    for(let i=1;i<moves.length;i++){
+      if(moves[i].x===ttMove[0]&&moves[i].y===ttMove[1]){moves.unshift(moves.splice(i,1)[0]);break;}
+    }
+  }
+  let best=-Infinity,bx=-1,by=-1;
   for(const m of moves){
-    board[m.x][m.y]=p;hashPlace(m.x,m.y,p);
+    pushStone(m.x,m.y,p);
     const v=-negamax(depth-1,-beta,-alpha,3-p,m.x,m.y);
-    board[m.x][m.y]=EMPTY;hashPlace(m.x,m.y,p);
-    if(v>best)best=v;
+    pushStone(m.x,m.y,EMPTY);
+    if(v>best){best=v;bx=m.x;by=m.y;}
     if(v>alpha)alpha=v;
     if(alpha>=beta)break;
   }
-  TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0)};
+  if(searchAborted)return best;   /* 被时间截断的半截结果不写表，否则会污染同代其它结点 */
+  TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
   return best;
 }
 /* AI 选择着点（内部实现）。p 为 AI 执子（黑方着法自动经过禁手过滤） */
@@ -744,27 +841,43 @@ function aiChooseRaw(p){
     else if(r>=0.9)idx=Math.min(ranked.length-1,1+((Math.random()*3)|0));
     return ranked[idx];
   }
-  const depth=mode==='ai-expert'?4:2;
-  searchDeadline=Date.now()+(mode==='ai-expert'?3000:1200);
+  /* 迭代加深：先 2 层跑一遍完整结果打底，再逐层加深，剩余时间不足以跑完整层就收手。
+     原版只搜固定深度，一旦超时就把「只看了前几手」的半截评估当作结论交出，
+     而专家又几乎没用到 3 秒预算。 */
+  const cfg=AI_CFG[mode]||AI_CFG['ai-hard'];
+  const budget=cfg.t;
+  searchDeadline=Date.now()+budget;
   searchAborted=false;
   zobristInit();
   hashFromBoard();
   ttDraft++;
   qNodes=0;
-  const root=orderedMoves(p,12);
+  let root=orderedMoves(p,cfg.w);
   if(!root.length)return null;
   let best=root[0],bestV=-Infinity;
-  for(const m of root){
-    board[m.x][m.y]=p;hashPlace(m.x,m.y,p);
-    const v=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,Infinity,op,m.x,m.y);
-    board[m.x][m.y]=EMPTY;hashPlace(m.x,m.y,p);
-    if(v>bestV){bestV=v;best=m;}
-    if(searchAborted)break;
+  for(const depth of cfg.d){
+    if(depth>2&&searchDeadline-Date.now()<budget*0.15)break;
+    let cur=null,curV=-Infinity,n=0;
+    const scored=[];
+    for(const m of root){
+      pushStone(m.x,m.y,p);
+      const v=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,Infinity,op,m.x,m.y);
+      pushStone(m.x,m.y,EMPTY);
+      scored.push([v,m]);n++;
+      if(v>curV){curV=v;cur=m;}
+      if(searchAborted)break;
+    }
+    /* 整层跑完才可信；被截断的层只有明显优于上一层才采纳 */
+    if(cur&&(n===root.length||curV>bestV)){best=cur;bestV=curV;}
+    if(searchAborted||bestV>=8900000)break;   /* 已算出必杀，把时间还给玩家 */
+    scored.sort((a,b)=>b[0]-a[0]);
+    root=scored.map(s=>s[1]);                 /* 用本层评估序作为下一层的搜索次序 */
   }
   return {x:best.x,y:best.y};
 }
 /* 最后一道防线：无论各难度策略以后如何演化，绝不向对局流程交付禁手点 */
 function aiChoose(p){
+  syncCand(); /* 对局流程/读档可能整体替换或直写 board，思考前与盘面校准一次 */
   const move=aiChooseRaw(p);
   if(move&&isLegalMoveAt(p,move.x,move.y))return move;
   const fallback=orderedMoves(p,12);
@@ -807,6 +920,7 @@ function updateFoulMarkers(){
   foulSetKey=key;foulSet=new Set();
   if(over||turn!==BLACK)return;
   if(!history.length)return; /* 空盘无禁手 */
+  syncCand();               /* 扫描前校准候选表，避免外部直写 board 造成漏点 */
   const cands=candidates(2);
   for(const c of cands){
     if(board[c[0]][c[1]]!==EMPTY)continue;
@@ -1002,7 +1116,7 @@ function saveSession(){
 
 /* ================= 对局流程 ================= */
 function newGame(){
-  board=Array.from({length:N},()=>new Array(N).fill(EMPTY));
+  clearBoard();
   history=[];turn=BLACK;over=false;winner=0;winCells=null;recorded=false;
   aiThinking=false;aiToken++;hover=null;kbdCursor=false;
   stopTimer();elapsed=0;$('timer').textContent='00:00';
@@ -1011,7 +1125,7 @@ function newGame(){
   maybeAI(); /* AI 执黑时自动开出第一手 */
 }
 function placeAt(x,y,p){
-  board[x][y]=p;
+  setCell(x,y,p);
   history.push({x,y,p,at:performance.now()});
   const wc=winCellsAt(x,y,p);
   if(wc){
@@ -1064,7 +1178,7 @@ function undo(){
   const n=mode==='pvp'?1:Math.min(2,history.length);
   for(let i=0;i<n;i++){
     const mv=history.pop();
-    board[mv.x][mv.y]=EMPTY;
+    setCell(mv.x,mv.y,EMPTY);
   }
   turn=history.length%2===0?BLACK:WHITE;
   aiToken++;aiThinking=false;
@@ -1386,7 +1500,7 @@ function init(){
     if(ses.side)applySide(ses.side);
     newGame();
     ses.moves.forEach(m=>{
-      board[m.x][m.y]=turn;
+      setCell(m.x,m.y,turn);
       history.push({x:m.x,y:m.y,p:turn,at:0});
       turn=3-turn;
     });
