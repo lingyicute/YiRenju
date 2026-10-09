@@ -502,6 +502,20 @@ function blackLegality(x,y){
   board[x][y]=EMPTY;
   return t;
 }
+/* AI 落子不变量：只能返回空点；黑棋只能返回经禁手检测的合法着法 */
+function isLegalMoveAt(p,x,y){
+  if(!inB(x,y)||board[x][y]!==EMPTY)return false;
+  if(p!==BLACK)return true;
+  const t=blackLegality(x,y);
+  return t==='ok'||t==='win';
+}
+function legalCandidatePoints(p,points){
+  const legal=[];
+  for(const c of points){
+    if(isLegalMoveAt(p,c[0],c[1]))legal.push(c);
+  }
+  return legal;
+}
 /* ============ 战术搜索组件：取胜点集 / 冲四着法 / VCF静默扩展 ============ */
 /* p 方当前所有一步取胜点（黑棋只含合法恰好五连） */
 function winPointsAll(p){
@@ -638,6 +652,7 @@ function blackWinPoint(){
 }
 /* 候选点按 进攻+防守 打分排序，取前 cap 个；黑方需剔除禁手点 */
 function orderedMoves(p,cap){
+  cap=Math.max(1,cap|0);
   const cands=candidates(2),op=3-p,arr=[];
   for(const c of cands){
     const atk=evalPoint(c[0],c[1],p),def=evalPoint(c[0],c[1],op);
@@ -646,11 +661,20 @@ function orderedMoves(p,cap){
   arr.sort((a,b)=>b.s-a.s);
   if(p!==BLACK)return arr.slice(0,cap);
   const legal=[];
-  for(let i=0;i<arr.length&&legal.length<cap;i++){
-    const m=arr[i],t=blackLegality(m.x,m.y);
-    if(t==='ok'||t==='win')legal.push(m);
+  for(const m of arr){
+    if(isLegalMoveAt(p,m.x,m.y))legal.push(m);
+    if(legal.length>=cap)break;
   }
-  return legal.length?legal:arr.slice(0,1); /* 极端情况兜底 */
+  if(legal.length)return legal;
+  /* 局部候选全被禁手过滤时扩到全盘扫描；绝不退回未验证的禁手着法 */
+  const all=[];
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++){
+    if(!isLegalMoveAt(p,x,y))continue;
+    const atk=evalPoint(x,y,p),def=evalPoint(x,y,op);
+    all.push({x,y,s:atk+def*0.85});
+  }
+  all.sort((a,b)=>b.s-a.s);
+  return all.slice(0,cap);
 }
 let searchDeadline=0,searchAborted=false;
 function negamax(depth,alpha,beta,p,lastX,lastY){
@@ -681,18 +705,24 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
   TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0)};
   return best;
 }
-/* AI 选择着点。p 为 AI 执子（黑方着法自动经过禁手过滤） */
-function aiChoose(p){
+/* AI 选择着点（内部实现）。p 为 AI 执子（黑方着法自动经过禁手过滤） */
+function aiChooseRaw(p){
   const op=3-p;
   const cands=candidates(2);
   if(!cands.length)return null;
   /* 能赢先赢 */
   const wp=p===WHITE?fivePoint(WHITE):blackWinPoint();
   if(wp)return wp;
+  /* 中等及以上：不允许随机放弃唯一的合法必挡点（活四/双杀无法单挡时除外） */
+  if(mode!=='ai-easy'){
+    const opWins=winPointsAll(op);
+    if(opWins.length===1&&isLegalMoveAt(p,opWins[0].x,opWins[0].y))return opWins[0];
+  }
   if(mode==='ai-easy'){
     const th=p===WHITE?blackWinPoint():fivePoint(WHITE);
-    if(th&&Math.random()<0.55)return th;
-    const near=candidates(1);
+    if(th&&isLegalMoveAt(p,th.x,th.y)&&Math.random()<0.55)return th;
+    const near=legalCandidatePoints(p,candidates(1));
+    if(!near.length)return null;
     const pick=near[(Math.random()*near.length)|0];
     return {x:pick[0],y:pick[1]};
   }
@@ -723,6 +753,13 @@ function aiChoose(p){
     if(searchAborted)break;
   }
   return {x:best.x,y:best.y};
+}
+/* 最后一道防线：无论各难度策略以后如何演化，绝不向对局流程交付禁手点 */
+function aiChoose(p){
+  const move=aiChooseRaw(p);
+  if(move&&isLegalMoveAt(p,move.x,move.y))return move;
+  const fallback=orderedMoves(p,12);
+  return fallback.length?{x:fallback[0].x,y:fallback[0].y}:null;
 }
 /*CORE_END*/
 
@@ -998,7 +1035,12 @@ function maybeAI(){
     const mv=aiChoose(aiP);
     aiThinking=false;
     if(mv)placeAt(mv.x,mv.y,aiP);
-    else{updateHUD();scheduleDraw();}
+    else{
+      /* 全盘扫描仍无可落点：黑方无合法着法按连珠规则判负，避免对局停在 AI 回合 */
+      over=true;winner=humanP;stopTimer();
+      onGameEnd(humanP);
+      updateHUD();saveSession();scheduleDraw();
+    }
   },420+Math.random()*300);
 }
 function undo(){
