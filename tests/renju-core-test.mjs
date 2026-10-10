@@ -6,7 +6,7 @@ if(!existsSync(pageUrl)){console.error('找不到 index.html（请在仓库根�
 const html=readFileSync(pageUrl,'utf8');
 const src=html.slice(html.indexOf('/*CORE_START*/'),html.indexOf('/*CORE_END*/'));
 const api=new Function(src+`
-return {N,EMPTY,BLACK,WHITE,candidates,runInfo,isWinRun,winCellsAt,blackLegality,blackMoveType,orderedMoves,negamax,blackWinPoint,fivePoint,winPointsAll,winPointsBoth,fourMoves,qNode,aiChoose,isLegalMoveAt,legalCandidatePoints,evalBoard,evalDiff,dirScore,splitScore,stoneScore,vctFindWin,vctDefend,syncCand,setCell,pushStone,zobristInit,hashFromBoard,hashPlace,foulDraft:()=>{ttDraft++;},setQNodes:(v)=>{qNodes=v;},getQNodes:()=>qNodes,setVct:(ms)=>{vctDeadline=ms;vctAborted=false;vctNodeCount=0;},setMode:(m)=>{mode=m;},getBoard:()=>board,setBoard:(b)=>{board=b;syncCand();},setDeadline:(ms)=>{searchDeadline=ms;searchAborted=false;},getAborted:()=>searchAborted};`)();
+return {N,EMPTY,BLACK,WHITE,candidates,runInfo,isWinRun,winCellsAt,blackLegality,blackMoveType,orderedMoves,negamax,blackWinPoint,fivePoint,winPointsAll,winPointsBoth,fourMoves,qNode,aiChoose,isLegalMoveAt,legalCandidatePoints,evalBoard,evalDiff,dirScore,splitScore,stoneScore,vctFindWin,vctDefend,guardSafe,guardBest,syncCand,setCell,pushStone,zobristInit,hashFromBoard,hashPlace,foulDraft:()=>{ttDraft++;},setQNodes:(v)=>{qNodes=v;},getQNodes:()=>qNodes,setVct:(ms)=>{vctDeadline=ms;vctAborted=false;vctNodeCount=0;},setMode:(m)=>{mode=m;},getBoard:()=>board,setBoard:(b)=>{board=b;syncCand();},setDeadline:(ms)=>{searchDeadline=ms;searchAborted=false;},getAborted:()=>searchAborted};`)();
 const {N,EMPTY,BLACK,WHITE}=api;
 let pass=0,fail=0;
 function eq(name,got,want){const ok=JSON.stringify(got)===JSON.stringify(want);ok?pass++:fail++;console.log((ok?'PASS':'FAIL')+' '+name+(ok?'':`  got=${JSON.stringify(got)} want=${JSON.stringify(want)}`));}
@@ -243,6 +243,44 @@ ck('vctDefend 交出合法破局着',(()=>{
   if(!out.every(m=>api.isLegalMoveAt(BLACK,m.x,m.y)))return false;
   return out.some(m=>m.x===5&&m.y===4);
 })(),true);
+/* ===== 简单档强化回归 ===== */
+/* (ag) 对方单杀点：easy 每试必挡（不再有 55% 摇号） */
+blank();put([[4,6],[4,7],[4,8],[4,9]],WHITE);put([[4,5],[7,7]],BLACK);
+api.setMode('ai-easy');
+{
+  let allBlock=true;
+  for(let k=0;k<12;k++){const mv=api.aiChoose(BLACK);if(!mv||mv.x!==4||mv.y!==10)allBlock=false;}
+  ck('easy 单杀必挡×12',allBlock,true);
+}
+/* (ah) 加权取着 30 试全合法 */
+blank();put([[7,7],[6,6],[9,8]],BLACK);put([[8,7],[7,6],[8,8],[9,6]],WHITE);
+{
+  let allLegal=true;
+  for(let k=0;k<30;k++){const mv=api.aiChoose(WHITE);if(!mv||!api.isLegalMoveAt(WHITE,mv.x,mv.y))allLegal=false;}
+  ck('easy 加权取着全合法×30',allLegal,true);
+}
+api.setMode('ai-easy');
+/* ===== 送杀闸门 / 杀手与TT深度替换（行为等价） ===== */
+/* (ai) 浅层活三威胁局面：破局着放行，走杀着拦截（探针：白 VCT 可证明） */
+blank();put([[5,5],[5,6],[5,7]],WHITE);put([[10,10],[11,11]],BLACK);
+ck('guardSafe 放行破局着(5,4)',api.guardSafe(BLACK,{x:5,y:4},800),true);
+ck('guardSafe 拦截走杀着(0,0)',api.guardSafe(BLACK,{x:0,y:0},800),false);
+/* (aj) Killer/TT深度替换不得改变搜索分值（两次调用逐点一致） */
+blank();put([[7,7],[6,6],[9,8]],BLACK);put([[8,7],[7,6],[8,8]],WHITE);
+api.setDeadline(Date.now()+60000);api.foulDraft();
+{
+  const v1=api.negamax(4,-1e18,1e18,WHITE,-1,-1);
+  api.setDeadline(Date.now()+60000);api.foulDraft();
+  ck('negamax 两次调用分值一致',api.negamax(4,-1e18,1e18,WHITE,-1,-1),v1);
+}
+/* (ak) expert 集成：面对可证明强制杀时不得送入虎口（必须走破局点） */
+blank();put([[5,5],[5,6],[5,7]],WHITE);put([[10,10],[11,11]],BLACK);
+api.setMode('ai-expert');
+ck('aiChoose(expert) 不走杀',(()=>{
+  const mv=api.aiChoose(BLACK);
+  return !!mv&&((mv.x===5&&mv.y===4)||(mv.x===5&&mv.y===8));
+})(),true);
+api.setMode('ai-easy');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);
