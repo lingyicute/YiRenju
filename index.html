@@ -1041,12 +1041,23 @@ function aiChooseRaw(p){
     vctAborted=false;
   }
   if(mode==='ai-easy'){
-    const th=p===WHITE?blackWinPoint():fivePoint(WHITE);
-    if(th&&isLegalMoveAt(p,th.x,th.y)&&Math.random()<0.55)return th;
+    /* 对方成五点必挡；双杀点任堵其一（守不住也挣扎一下） */
+    const ow=winPointsAll(op);
+    if(ow.length===1&&isLegalMoveAt(p,ow[0].x,ow[0].y))return ow[0];
+    if(ow.length>=2){
+      const b=ow.filter(w=>isLegalMoveAt(p,w.x,w.y));
+      if(b.length)return b[(Math.random()*b.length)|0];
+    }
+    /* 静态分加权落子：攻方估价+守方估价的八成，越强的点越容易被选中，但并不保证 */
     const near=legalCandidatePoints(p,candidates(1));
     if(!near.length)return null;
-    const pick=near[(Math.random()*near.length)|0];
-    return {x:pick[0],y:pick[1]};
+    const sc=near.map(c=>({x:c[0],y:c[1],s:evalPoint(c[0],c[1],p)+evalPoint(c[0],c[1],op)*0.8}));
+    sc.sort((a,b)=>b.s-a.s||((a.x*16+a.y)-(b.x*16+b.y)));
+    const r=Math.random();
+    if(r<0.55)return sc[0];
+    if(sc.length>1&&r<0.80)return sc[1];
+    if(sc.length>2&&r<0.92)return sc[2];
+    return sc[(Math.random()*sc.length)|0];
   }
   if(mode==='ai-medium'){
     const ranked=orderedMoves(p,8);
