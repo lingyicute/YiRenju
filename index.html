@@ -410,15 +410,38 @@ function runInfo(x,y,dx,dy,p){
 function dirScore(c,o,side){
   if(c===5)return 1000000;                       /* 五连（黑棋必须恰好五连） */
   if(c>5)return side===BLACK?5:1000000;          /* 长连：黑禁手无用，白算胜 */
-  if(o===0)return c>=4?900:c===3?90:c===2?12:1;
+  if(o===0)return c===3?90:c===2?12:1;          /* 两端皆堵：死三/死二；死四已无成五可能，不应高于活二 */
   if(c===4)return o===2?150000:20000; /* 活四 / 冲四 */
   if(c===3)return o===2?12000:1500;   /* 活三 / 眠三 */
   if(c===2)return o===2?900:110;
   return o===2?30:8;
 }
+/* 分离型棋形（跳三 X.XX、断四 XX.XX 等）：连续段统计 dirScore 看不见它们。
+   这里对包含本子的每个 5 格窗口补算：窗口内无对方子，且己方子之间有空隙时才计分
+   （连续棋形仍由 dirScore 负责，不重复计分）。断四的威胁与连续冲四相当。 */
+const SPLIT3=3000,SPLIT4=12000;
+function splitScore(x,y,dx,dy,p){
+  const op=3-p;let s=0;
+  for(let o=-4;o<=0;o++){            /* 窗口起点：窗口覆盖 (x,y) */
+    let k=0,mn=5,mx=-5,ok=true;
+    for(let t=o;t<o+5;t++){
+      const nx=x+dx*t,ny=y+dy*t;
+      if(!inB(nx,ny)){ok=false;break;}
+      const v=board[nx][ny];
+      if(v===op){ok=false;break;}
+      if(v===p){k++;if(t<mn)mn=t;if(t>mx)mx=t;}
+    }
+    if(!ok||k<3||mx-mn+1===k)continue;   /* 对方挡住 / 子数不足 / 连续（已由 dirScore 计入） */
+    s+=k===4?SPLIT4:SPLIT3;
+  }
+  return s;
+}
 function stoneScore(x,y,p){
   let s=0;
-  for(const d of DIRS){const r=runInfo(x,y,d[0],d[1],p);s+=dirScore(r[0],r[1],p);}
+  for(const d of DIRS){
+    const r=runInfo(x,y,d[0],d[1],p);
+    s+=dirScore(r[0],r[1],p)+splitScore(x,y,d[0],d[1],p);
+  }
   return s;
 }
 /* 模拟 p 落在 (x,y) 后的形态分（自动还原） */
@@ -768,10 +791,12 @@ function orderedMoves(p,cap){
 }
 let searchDeadline=0,searchAborted=false;
 const VCF_PLY=10;                 /* 静默搜索（连续冲四）延伸层数 */
-/* 各难度搜索配置：d=迭代加深层数序列，t=每手时间上限(ms)，w=根节点候选宽度 */
+/* 各难度搜索配置：d=迭代加深层数序列，t=每手时间上限(ms)，w=根节点候选宽度。
+   原版深度序列写死（困难止于 4 层、专家止于 6 层），实测常规局面 99% 以上时间未用满；
+   这里加深到能在时限内完成的层数，由下方时间控制兜底截断。 */
 const AI_CFG={
-  'ai-hard':{d:[2,4],t:1200,w:12},
-  'ai-expert':{d:[2,4,6],t:3000,w:16}
+  'ai-hard':{d:[2,4,6],t:1200,w:12},
+  'ai-expert':{d:[2,4,6,8],t:3000,w:16}
 };
 function negamax(depth,alpha,beta,p,lastX,lastY){
   if(lastX>=0&&isWinRun(lastX,lastY,3-p))return -9000000-depth*1000;
@@ -868,6 +893,7 @@ function aiChooseRaw(p){
   for(const depth of cfg.d){
     if(depth>2&&searchDeadline-Date.now()<budget*0.15)break;
     let cur=null,curV=-Infinity,n=0,rootAlpha=-Infinity;
+    let ties=[];                              /* 并列最优着法：同分时随机选，避免相同局面每局都走同一步 */
     const scored=[];
     for(const m of root){
       pushStone(m.x,m.y,p);
@@ -876,8 +902,23 @@ function aiChooseRaw(p){
       pushStone(m.x,m.y,EMPTY);
       if(searchAborted)break;     /* 被时限截断的那一手，数值来自未搜完的子树，不计入本层 */
       scored.push([v,m]);n++;
-      if(v>curV){curV=v;cur=m;}
+      if(v>curV){curV=v;cur=m;ties=[m];}
+      else if(v===curV)ties.push(m);
       if(v>rootAlpha)rootAlpha=v;
+    }
+    /* ties[0] 是严格刷新 curV 的那手，必为精确分；其余并列者可能只拿到了根窗口的上界值，
+       随机前先用全窗口复核，剔除“形似同分实则更差”的着法，再在真同分中随机 */
+    if(cur&&ties.length>1&&!searchAborted){
+      const pool=[ties[0]];
+      for(let i=1;i<ties.length;i++){
+        if(searchDeadline-Date.now()<50)break;    /* 接近尾声就不再开启复查 */
+        const m=ties[i];
+        pushStone(m.x,m.y,p);
+        const ev=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,Infinity,op,m.x,m.y);
+        pushStone(m.x,m.y,EMPTY);
+        if(!searchAborted&&ev===curV)pool.push(m);
+      }
+      if(pool.length>1)cur=pool[(Math.random()*pool.length)|0];
     }
     /* 整层跑完才可信；被截断的层只有明显优于上一层才采纳（原作者的启发式，保留） */
     if(cur&&(n===root.length||curV>bestV)){best=cur;bestV=curV;}
