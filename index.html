@@ -654,7 +654,7 @@ function qNode(p,alpha,beta,qd){
   if(w.mine.length)return 9000000+qd*10;             /* 轮到我走且有胜点 */
   if(w.opp.length>1)return -9000000-qd*10;           /* 对方双杀点，堵不住 */
   if(w.opp.length===1){                              /* 被迫单挡 */
-    if(qd<=0)return -9000000;
+    if(qd<=0)return evalDiff(p);     /* 静态延伸上限：待挡不等于输棋，返回静态评估 */
     const b=w.opp[0];
     if(p===BLACK){const t=blackLegality(b.x,b.y);if(t!=='ok'&&t!=='win')return -9000000;} /* 无合法挡点 */
     pushStone(b.x,b.y,p);                            /* 走 pushStone：本子树的 candidates() 必须看得见这手棋 */
@@ -791,13 +791,23 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
     if(e.m)ttMove=e.m;            /* 深度不够时只借用它记录的最佳着法 */
   }
   if(depth<=0)return qNode(p,alpha,beta,VCF_PLY);
-  const moves=orderedMoves(p,depth>=3?12:10);
-  if(!moves.length)return qNode(p,alpha,beta,VCF_PLY);
-  if(ttMove){                     /* 上一层的 PV 先搜，剪枝才能尽早命中 */
-    for(let i=1;i<moves.length;i++){
-      if(moves[i].x===ttMove[0]&&moves[i].y===ttMove[1]){moves.unshift(moves.splice(i,1)[0]);break;}
+  /* 强制应着：对方已有一步成五点时只能堵这一点；两个成五点则必败；堵点为黑方禁手亦必败 */
+  let moves;
+  const threats=winPointsAll(3-p);
+  if(threats.length>=2)return -9000000-depth*1000;
+  if(threats.length===1){
+    const b=threats[0];
+    if(!isLegalMoveAt(p,b.x,b.y))return -9000000-depth*1000;
+    moves=[{x:b.x,y:b.y}];
+  }else{
+    moves=orderedMoves(p,depth>=3?12:10);
+    if(ttMove){                   /* 上一层的 PV 先搜，剪枝才能尽早命中 */
+      for(let i=1;i<moves.length;i++){
+        if(moves[i].x===ttMove[0]&&moves[i].y===ttMove[1]){moves.unshift(moves.splice(i,1)[0]);break;}
+      }
     }
   }
+  if(!moves.length)return qNode(p,alpha,beta,VCF_PLY);
   let best=-Infinity,bx=-1,by=-1;
   for(const m of moves){
     pushStone(m.x,m.y,p);
@@ -857,17 +867,19 @@ function aiChooseRaw(p){
   let best=root[0],bestV=-Infinity;
   for(const depth of cfg.d){
     if(depth>2&&searchDeadline-Date.now()<budget*0.15)break;
-    let cur=null,curV=-Infinity,n=0;
+    let cur=null,curV=-Infinity,n=0,rootAlpha=-Infinity;
     const scored=[];
     for(const m of root){
       pushStone(m.x,m.y,p);
-      const v=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,Infinity,op,m.x,m.y);
+      /* 根节点窗口：只需判断能否超过当前最好值，子搜索上界取 -rootAlpha */
+      const v=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,-rootAlpha,op,m.x,m.y);
       pushStone(m.x,m.y,EMPTY);
+      if(searchAborted)break;     /* 被时限截断的那一手，数值来自未搜完的子树，不计入本层 */
       scored.push([v,m]);n++;
       if(v>curV){curV=v;cur=m;}
-      if(searchAborted)break;
+      if(v>rootAlpha)rootAlpha=v;
     }
-    /* 整层跑完才可信；被截断的层只有明显优于上一层才采纳 */
+    /* 整层跑完才可信；被截断的层只有明显优于上一层才采纳（原作者的启发式，保留） */
     if(cur&&(n===root.length||curV>bestV)){best=cur;bestV=curV;}
     if(searchAborted||bestV>=8900000)break;   /* 已算出必杀，把时间还给玩家 */
     scored.sort((a,b)=>b[0]-a[0]);
