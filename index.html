@@ -789,6 +789,172 @@ function orderedMoves(p,cap){
   all.sort((a,b)=>b.s-a.s||((a.x*16+a.y)-(b.x*16+b.y)));
   return all.slice(0,cap);
 }
+/* ============ VCT（连续威胁搜索）============
+   与 VCF 的区别：攻方可以走「活三」（本手不成四，但下一手能成双头四），防守方必须在
+   防守点中选一个应对；防守方也可以用冲四反击（最多 VCT_CTR 次）。攻方须对每一种防守
+   应对都能取胜，才算证明成功。
+   近似说明：防守点取攻方该条线 ±4 格内的空点，不含「借禁手使开四非法」之类的线外防守，
+   因此结果只作为搜索启发（找胜着 / 找防守着），每手都会重新搜索，不作为绝对证明。
+   超时一律按「未证明」处理，因此不会因超时而误报必胜或误判必败。 */
+const VCT_ENABLED=true;                      /* 总开关：false 则完全退回 v1 行为 */
+const VCT_DEPTH=5,VCT_TEST_DEPTH=3,VCT_CTR=1,VCT_FOUR_CAP=4,VCT_THREE_CAP=6,VCT_DEF_CAP=12,VCT_SHARE=0.15;
+let vctDeadline=0,vctAborted=false,vctNodeCount=0,vctBreakers=null;
+function vctTimeUp(){
+  vctNodeCount++;
+  if(!vctAborted&&Date.now()>vctDeadline)vctAborted=true;
+  return vctAborted;
+}
+/* (x,y) 已落 p 子：沿 (dx,dy) 是否存在一手补子，使该线形成两个以上成五点（即活四） */
+function openThreeDir(x,y,dx,dy,p){
+  for(let o=-4;o<=4;o++){
+    if(o===0)continue;
+    const nx=x+dx*o,ny=y+dy*o;
+    if(!inB(nx,ny)||board[nx][ny]!==EMPTY)continue;
+    pushStone(nx,ny,p);
+    let ok=true;
+    if(p===BLACK){const t=blackMoveType(nx,ny);ok=(t==='ok'||t==='win');}
+    const fives=ok?ptsToFiveThrough(x,y,dx,dy,p):0;
+    pushStone(nx,ny,EMPTY);
+    if(fives>=2)return true;
+  }
+  return false;
+}
+/* p 的活三着点：落子后某条线能一手形成开四（黑棋需经禁手检测） */
+function threeMovesVCT(p,cap){
+  const out=[];
+  for(const c of candidates(2)){
+    const x=c[0],y=c[1];
+    if(board[x][y]!==EMPTY)continue;
+    if(p===BLACK&&!isLegalMoveAt(p,x,y))continue;
+    pushStone(x,y,p);
+    let hit=false;
+    for(const d of DIRS){
+      if(winCount(x,y,d[0],d[1],p)<2)continue;
+      if(openThreeDir(x,y,d[0],d[1],p)){hit=true;break;}
+    }
+    pushStone(x,y,EMPTY);
+    if(hit)out.push({x:x,y:y,s:evalPoint(x,y,p)});
+  }
+  out.sort((a,b)=>b.s-a.s||((a.x*16+a.y)-(b.x*16+b.y)));
+  return out.slice(0,cap);
+}
+/* 攻方着法：先冲四（强制性最高），再活三 */
+function vctAttackMoves(att){
+  const seen=new Set(),out=[];
+  for(const f of fourMoves(att,VCT_FOUR_CAP)){
+    const k=f.x*N+f.y;
+    if(!seen.has(k)){seen.add(k);out.push({x:f.x,y:f.y});}
+  }
+  for(const t of threeMovesVCT(att,VCT_THREE_CAP)){
+    const k=t.x*N+t.y;
+    if(!seen.has(k)){seen.add(k);out.push({x:t.x,y:t.y});}
+  }
+  return out;
+}
+/* 攻方最近一手 lm 的活三仍然成立？（否则防守方无需应对，攻方不能据此证明取胜） */
+function vctThreatAlive(lm,att){
+  for(const d of DIRS){
+    if(winCount(lm.x,lm.y,d[0],d[1],att)<2)continue;
+    if(openThreeDir(lm.x,lm.y,d[0],d[1],att))return true;
+  }
+  return false;
+}
+/* 防守点：lm 所在、攻方已有两子以上的各条线上的空点（±4 格内） */
+function defenseOptions(att,lm,dfn,ctr){
+  const opts=[],seen=new Set();
+  for(const d of DIRS){
+    if(winCount(lm.x,lm.y,d[0],d[1],att)<2)continue;
+    for(let o=-4;o<=4;o++){
+      if(o===0)continue;
+      const nx=lm.x+d[0]*o,ny=lm.y+d[1]*o;
+      if(!inB(nx,ny)||board[nx][ny]!==EMPTY)continue;
+      const k=nx*N+ny;
+      if(seen.has(k))continue;
+      seen.add(k);
+      if(!isLegalMoveAt(dfn,nx,ny))continue;
+      opts.push({x:nx,y:ny,s:evalPoint(nx,ny,dfn)+evalPoint(nx,ny,att)*0.85,four:false});
+    }
+  }
+  opts.sort((a,b)=>b.s-a.s||((a.x*16+a.y)-(b.x*16+b.y)));
+  if(opts.length>VCT_DEF_CAP)opts.length=VCT_DEF_CAP;
+  if(ctr>0)for(const f of fourMoves(dfn,2))opts.push({x:f.x,y:f.y,four:true});
+  return opts;
+}
+/* 防守方走棋（轮到 3-att）：返回攻方能否取胜 */
+function vctD(att,d,ctr,lm){
+  if(vctTimeUp())return false;
+  const dfn=3-att;
+  if(winPointsAll(dfn).length)return false;      /* 防守方直接成五 */
+  const w=winPointsAll(att);
+  if(w.length>=2)return true;                    /* 双成五点，防守方挡不住 */
+  if(w.length===1){                              /* 单成五点：被迫挡 */
+    const b=w[0];
+    if(!isLegalMoveAt(dfn,b.x,b.y))return true;  /* 挡点为禁手 */
+    pushStone(b.x,b.y,dfn);
+    const r=vctA(att,d,ctr,lm);
+    pushStone(b.x,b.y,EMPTY);
+    return r;
+  }
+  if(!lm||!vctThreatAlive(lm,att))return false;
+  for(const o of defenseOptions(att,lm,dfn,ctr)){
+    pushStone(o.x,o.y,dfn);
+    const r=vctA(att,d,o.four?ctr-1:ctr,lm);
+    pushStone(o.x,o.y,EMPTY);
+    if(!r)return false;                          /* 防守方找到破局应对 */
+  }
+  return true;
+}
+/* 攻方走棋（轮到 att）：返回攻方能否在 d 手内通过连续威胁取胜 */
+function vctA(att,d,ctr,lm){
+  if(vctTimeUp())return false;
+  if(winPointsAll(att).length)return true;
+  const dfn=3-att,ow=winPointsAll(dfn);
+  if(ow.length>=2)return false;
+  if(ow.length===1){                             /* 防守方有成五点：被迫挡 */
+    const b=ow[0];
+    if(!isLegalMoveAt(att,b.x,b.y))return false;
+    pushStone(b.x,b.y,att);
+    const r=vctD(att,d,ctr,lm);
+    pushStone(b.x,b.y,EMPTY);
+    return r;
+  }
+  if(d<=0)return false;
+  for(const m of vctAttackMoves(att)){
+    pushStone(m.x,m.y,att);
+    const r=vctD(att,d-1,ctr,m);
+    pushStone(m.x,m.y,EMPTY);
+    if(r)return true;
+    if(vctAborted)return false;
+  }
+  return false;
+}
+/* 根节点：找 p 的连续威胁取胜着；找不到（或超时）返回 null */
+function vctFindWin(p){
+  for(const m of vctAttackMoves(p)){
+    pushStone(m.x,m.y,p);
+    const r=vctD(p,VCT_DEPTH-1,VCT_CTR,m);
+    pushStone(m.x,m.y,EMPTY);
+    if(vctAborted)return null;
+    if(r)return m;
+  }
+  return null;
+}
+/* 根节点：若对方存在连续威胁，收集能破坏之的应着（最多 VCT_BREAK_CAP 个）；
+   无威胁或超时返回 null。注意：这些应着只是搜索的候选限制，最终仍由搜索择优。 */
+const VCT_BREAK_CAP=2;
+function vctDefend(p){
+  const op=3-p;
+  if(!vctA(op,VCT_TEST_DEPTH,VCT_CTR,null)||vctAborted)return null;
+  const out=[];
+  for(const x of orderedMoves(p,VCT_DEF_CAP)){
+    pushStone(x.x,x.y,p);
+    const r=vctA(op,VCT_TEST_DEPTH,VCT_CTR,null);
+    pushStone(x.x,x.y,EMPTY);
+    if(vctAborted)break;
+    if(!r){out.push({x:x.x,y:x.y});if(out.length>=VCT_BREAK_CAP)break;}
+  }
+  return out.length?out:null;
+}
 let searchDeadline=0,searchAborted=false;
 const VCF_PLY=10;                 /* 静默搜索（连续冲四）延伸层数 */
 /* 各难度搜索配置：d=迭代加深层数序列，t=每手时间上限(ms)，w=根节点候选宽度。
@@ -849,6 +1015,7 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
 /* AI 选择着点（内部实现）。p 为 AI 执子（黑方着法自动经过禁手过滤） */
 function aiChooseRaw(p){
   const op=3-p;
+  const tStart=Date.now();                       /* 本手计时起点：VCT 与迭代加深共用同一时限 */
   const cands=candidates(2);
   if(!cands.length)return null;
   /* 能赢先赢 */
@@ -858,6 +1025,20 @@ function aiChooseRaw(p){
   if(mode!=='ai-easy'){
     const opWins=winPointsAll(op);
     if(opWins.length===1&&isLegalMoveAt(p,opWins[0].x,opWins[0].y))return opWins[0];
+  }
+  /* 困难及专家：先做连续威胁搜索（VCT）。有必胜威胁则直接走；对方有连续威胁则找破局着。 */
+  if(VCT_ENABLED&&(mode==='ai-hard'||mode==='ai-expert')){
+    const vcfg=AI_CFG[mode];
+    syncCand();
+    vctDeadline=tStart+vcfg.t*VCT_SHARE;
+    vctAborted=false;
+    vctBreakers=null;
+    const vw=vctFindWin(p);
+    if(vw&&isLegalMoveAt(p,vw.x,vw.y))return vw;
+    if(!vctAborted){
+      vctBreakers=vctDefend(p);
+    }
+    vctAborted=false;
   }
   if(mode==='ai-easy'){
     const th=p===WHITE?blackWinPoint():fivePoint(WHITE);
@@ -881,13 +1062,19 @@ function aiChooseRaw(p){
      而专家又几乎没用到 3 秒预算。 */
   const cfg=AI_CFG[mode]||AI_CFG['ai-hard'];
   const budget=cfg.t;
-  searchDeadline=Date.now()+budget;
+  searchDeadline=tStart+budget;                  /* 时限自 tStart 起算，已扣除 VCT 用时 */
   searchAborted=false;
   zobristInit();
   hashFromBoard();
   ttDraft++;
   qNodes=0;
   let root=orderedMoves(p,cfg.w);
+  if(vctBreakers){                                /* VCT：对方有连续威胁时，只在破局着中择优 */
+    const keep=root.filter(m=>vctBreakers.some(b=>b.x===m.x&&b.y===m.y));
+    if(keep.length)root=keep;
+    else root=vctBreakers.filter(b=>isLegalMoveAt(p,b.x,b.y));
+    vctBreakers=null;
+  }
   if(!root.length)return null;
   let best=root[0],bestV=-Infinity;
   for(const depth of cfg.d){
