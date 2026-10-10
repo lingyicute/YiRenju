@@ -34,7 +34,15 @@ ok('title 含 YiRenju',(await page.title()).includes('YiRenju'),await page.title
 ok('brand-name=YIRenju',(await page.textContent('.brand-name')).trim()==='YiRenju');
 ok('h1=五子棋 · 连珠',(await page.textContent('h1')).includes('五子棋 · 连珠'),await page.textContent('h1'));
 ok('subtitle 无连珠规则小字',!(await page.textContent('#subtitle')).includes('连珠规则'));
-ok('菜单首项=什么是连珠？',(await page.textContent('.menu .menu-item')).includes('什么是连珠？'));
+ok('菜单首项=什么是连珠？',(await page.textContent('.menu .menu-item')).includes('什么是连珠'));
+/* 音效开关：默认开、点击切换、状态持久化、图标联动 */
+ok('音效菜单项默认开',(await page.textContent('#soundText')).includes('开'),await page.textContent('#soundText'));
+await page.evaluate(()=>document.querySelector('[data-act="sound"]').click());
+ok('音效切到关',(await page.textContent('#soundText')).includes('关'));
+ok('音效图标联动(关显示×版)',await page.evaluate(()=>document.getElementById('icSoundOff').style.display!=='none'&&document.getElementById('icSoundOn').style.display==='none'));
+ok('音效状态持久化到 settings',await page.evaluate(()=>JSON.parse(localStorage.getItem('yirenju.settings')).sound===false));
+await page.evaluate(()=>document.querySelector('[data-act="sound"]').click());
+ok('音效切回开',(await page.textContent('#soundText')).includes('开'));
 
 async function clickCell(x,y){
   const pt=await page.evaluate(([x,y])=>{
