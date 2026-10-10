@@ -90,6 +90,7 @@ await page.evaluate(()=>{closeDialog();setMode('ai-easy');newGame();});
 await clickCell(7,7);
 await page.waitForTimeout(1500);
 ok('AI 应手后共 2 手',(await histLen())===2,'len='+(await histLen()));
+ok('AI Worker 已挂载自举',await page.evaluate(()=>typeof aiWorker==='object'&&aiWorker!==null));
 
 /* 6. 帮助弹窗（规则说明） */
 await page.evaluate(()=>showHelp());
