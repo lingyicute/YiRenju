@@ -107,7 +107,7 @@ Forbidden-move detection checks Black's candidate points against the three forbi
 
 ### 3. Search-Based AI
 
-Hard and Expert use negamax search with alpha-beta pruning and a transposition table keyed by Zobrist hashing. Candidate moves are limited to empty points near existing stones. A threat search follows continuous fours (VCF) to find forced wins and forced defenses.
+Hard and Expert use negamax search with alpha-beta pruning and a transposition table keyed by Zobrist hashing. Candidate moves are limited to empty points near existing stones. A threat search follows continuous fours (VCF) and lived-threes (VCT) to find forced wins and forced defenses, and a final guard pass vetoes any move that would hand the opponent a provable forced win. The engine bootstraps itself into a Web Worker carved from the same `index.html`, so the page never freezes while the AI thinks.
 
 ### 4. Your Data Stays on Your Device
 
