@@ -14,7 +14,7 @@ import argparse, base64, io, os, re, sys, urllib.request
 FONT_URL = "https://raw.githubusercontent.com/lingyicute/Nebulove/main/Nebulove.woff2"
 # 不再写入远程地址
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_HTML = os.path.join(os.path.dirname(HERE), "yimoku.html")
+DEFAULT_HTML = os.path.join(os.path.dirname(HERE), "index.html")
 ASCII = {chr(c) for c in range(32, 127)}
 PUNCT = set("：，。！？；‘’“”（）【】—…·《》×＝÷＋－、")
 
