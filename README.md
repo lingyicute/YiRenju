@@ -43,7 +43,7 @@ It is a **single, self-contained HTML file** with the markup, styles, and game l
   - A rules summary and a short Renju primer are available from the menu (☰).
 
 - **🤖 Four AI Levels**
-  - **Easy:** mostly random moves near the action, though it still takes winning moves and often blocks yours.
+  - **Easy:** random moves near the action, weighted toward stronger points. It takes winning moves and always blocks an immediate win.
   - **Medium:** ranks moves by attack and defense value, with some randomness.
   - **Hard:** iteratively deepens 2 → 6 plies (its move and your reply), with a 1.2-second limit per move.
   - **Expert:** iteratively deepens 2 → 8 plies with a 3-second limit per move, and stops as soon as a forced win is proven.
@@ -72,6 +72,10 @@ It is a **single, self-contained HTML file** with the markup, styles, and game l
 - **📱 Mouse, Touch, and Keyboard**
   - Hover to preview a stone on desktop. Tap to place a stone on mobile; swiping still scrolls the page.
   - The board scales to fit your screen. The keyboard cursor works with arrow keys or WASD.
+
+- **🔊 Stone Sounds and Haptics**
+  - A crisp Web Audio click on every move — black and white stones sound different — plus a little arpeggio on your wins. Toggle it from the menu (☰).
+  - On supported phones, moves give a short vibration pulse, and a win plays a celebratory rhythm.
 
 - **🔒 Offline, Private, and Ad-Free**
   - `index.html` makes **zero external network requests**. No accounts, analytics, or ads.
