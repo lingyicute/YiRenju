@@ -339,7 +339,7 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
 </div>
 <div class="toast" id="toast"></div>
 
-<script>
+<script id="main">
 /*APP_START*/
 'use strict';
 /* ================= 工具与存储 ================= */
@@ -959,8 +959,14 @@ function vctDefend(p){
   }
   return out.length?out:null;
 }
-let searchDeadline=0,searchAborted=false;
+let searchDeadline=0,searchAborted=false,searchPly=0;
 const VCF_PLY=10;                 /* 静默搜索（连续冲四）延伸层数 */
+const KILL_ON=true;               /* ⑲-c：截断杀手着法紧随 TT 着法之后参与排序（仅影响次序，不影响分值） */
+const KILL=new Array(256).fill(-1);
+const TT_DEPTH_PREF=true;         /* ⑲-d：置换表深度优先替换（不同局面的更深条目优先保留） */
+/* 送杀检查（⑩）：交付一手前确认它不会把对手可证明的强制杀放上棋盘。
+   从搜索预算里预留 GUARD_MS；超时一律按「未证明」放行，宁放行不误杀。 */
+const VCF_GUARD=true,GUARD_MS=100,GUARD_DEPTH=4;
 /* 各难度搜索配置：d=迭代加深层数序列，t=每手时间上限(ms)，w=根节点候选宽度。
    原版深度序列写死（困难止于 4 层、专家止于 6 层），实测常规局面 99% 以上时间未用满；
    这里加深到能在时限内完成的层数，由下方时间控制兜底截断。 */
@@ -1001,20 +1007,63 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
         if(moves[i].x===ttMove[0]&&moves[i].y===ttMove[1]){moves.unshift(moves.splice(i,1)[0]);break;}
       }
     }
+    if(KILL_ON&&moves.length>2){  /* ⑲-c 杀手着法紧随 TT 着法之后 */
+      for(let s=0;s<2;s++){
+        const km=searchPly<128?KILL[searchPly*2+s]:-1;
+        if(km<0)continue;
+        for(let q=2+s;q<moves.length;q++){
+          if(moves[q].x*16+moves[q].y===km){const h=moves[1+s];moves[1+s]=moves[q];moves[q]=h;break;}
+        }
+      }
+    }
   }
   if(!moves.length)return qNode(p,alpha,beta,VCF_PLY);
   let best=-Infinity,bx=-1,by=-1;
   for(const m of moves){
     pushStone(m.x,m.y,p);
+    searchPly++;
     const v=-negamax(depth-1,-beta,-alpha,3-p,m.x,m.y);
+    searchPly--;
     pushStone(m.x,m.y,EMPTY);
     if(v>best){best=v;bx=m.x;by=m.y;}
     if(v>alpha)alpha=v;
-    if(alpha>=beta)break;
+    if(alpha>=beta){
+      if(KILL_ON&&bx>=0&&searchPly<128){const k=bx*16+by,i2=searchPly*2;if(KILL[i2]!==k){KILL[i2+1]=KILL[i2];KILL[i2]=k;}}
+      break;
+    }
   }
   if(searchAborted)return best;   /* 被时间截断的半截结果不写表，否则会污染同代其它结点 */
-  TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
+  if(!TT_DEPTH_PREF){
+    TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
+  }else{
+    /* ⑲-d 深度优先替换：碰撞槽里不同局面的更深条目优先保留——
+       无条件覆盖会让一次浅层搜索挤掉迭代加深最想复用的深层结果。 */
+    const old=TT[ti];
+    if(!old||(old.k1===k1&&old.k2===k2)||old.dn!==ttDraft||old.d<=depth)
+      TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
+  }
   return best;
+}
+/* 送杀闸门：评估点 mv 落成后，对手是否存在 GUARD_DEPTH 手内可证明的强制杀 */
+function guardSafe(p,mv,ms){
+  pushStone(mv.x,mv.y,p);
+  vctDeadline=Date.now()+ms;vctAborted=false;
+  let lost=vctA(3-p,GUARD_DEPTH,VCT_CTR,null);
+  if(vctAborted)lost=false;                    /* 超时按未证明处理，宁放行不误杀 */
+  pushStone(mv.x,mv.y,EMPTY);
+  return !lost;
+}
+/* 在 root（当前最优次序）里找第一手无送杀嫌疑的着法；全灭或超时返回 null */
+function guardBest(p,root,deadline){
+  let rest=root.length;
+  for(const m of root){
+    let ms=deadline-Date.now();
+    if(ms<8)break;
+    ms=Math.min(ms,Math.max(8,ms/rest));
+    rest--;
+    if(guardSafe(p,m,ms))return m;
+  }
+  return null;
 }
 /* AI 选择着点（内部实现）。p 为 AI 执子（黑方着法自动经过禁手过滤） */
 function aiChooseRaw(p){
@@ -1077,7 +1126,7 @@ function aiChooseRaw(p){
      而专家又几乎没用到 3 秒预算。 */
   const cfg=AI_CFG[mode]||AI_CFG['ai-hard'];
   const budget=cfg.t;
-  searchDeadline=tStart+budget;                  /* 时限自 tStart 起算，已扣除 VCT 用时 */
+  searchDeadline=tStart+budget-(VCF_GUARD?GUARD_MS:0); /* 时限自 tStart 起算，已扣除 VCT 与送杀闸门用时 */
   searchAborted=false;
   zobristInit();
   hashFromBoard();
@@ -1100,7 +1149,9 @@ function aiChooseRaw(p){
     for(const m of root){
       pushStone(m.x,m.y,p);
       /* 根节点窗口：只需判断能否超过当前最好值，子搜索上界取 -rootAlpha */
+      searchPly=1;
       const v=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,-rootAlpha,op,m.x,m.y);
+      searchPly=0;
       pushStone(m.x,m.y,EMPTY);
       if(searchAborted)break;     /* 被时限截断的那一手，数值来自未搜完的子树，不计入本层 */
       scored.push([v,m]);n++;
@@ -1116,7 +1167,9 @@ function aiChooseRaw(p){
         if(searchDeadline-Date.now()<50)break;    /* 接近尾声就不再开启复查 */
         const m=ties[i];
         pushStone(m.x,m.y,p);
+        searchPly=1;
         const ev=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,Infinity,op,m.x,m.y);
+        searchPly=0;
         pushStone(m.x,m.y,EMPTY);
         if(!searchAborted&&ev===curV)pool.push(m);
       }
@@ -1127,6 +1180,15 @@ function aiChooseRaw(p){
     if(searchAborted||bestV>=8900000)break;   /* 已算出必杀，把时间还给玩家 */
     scored.sort((a,b)=>b[0]-a[0]);
     root=scored.map(s=>s[1]);                 /* 用本层评估序作为下一层的搜索次序 */
+  }
+  if(VCF_GUARD&&best&&!searchAborted&&bestV<8900000){
+    /* 送杀检查：最优着若把对手可证明的强制杀放上了棋盘，顺延到首个安全候选；
+       全部候选都走杀（或没时间复核）时维持原手。 */
+    const left=tStart+budget-Date.now();
+    if(left>=30){
+      const keep=guardBest(p,root,Date.now()+Math.min(left,GUARD_MS*3));
+      if(keep)best=keep;
+    }
   }
   return {x:best.x,y:best.y};
 }
@@ -1489,22 +1551,57 @@ function onGameEnd(p){
   }
   setTimeout(()=>showGameOver(p),750);
 }
+/* ================= AI Worker ================= */
+/* 自举 Worker：主脚本的 CORE_START/END 段即完整引擎，原地打包成 Blob 放副线程，
+   思考期间页面不冻结；环境不支持或打包失败时静默回退主线程同步搜索。 */
+let aiWorker=null,thinkMinT=0;
+function initAiWorker(){
+  if(typeof Worker==='undefined'||typeof Blob==='undefined'||typeof URL==='undefined')return;
+  try{
+    const tag=document.getElementById('main');
+    if(!tag)return;
+    const src=tag.textContent,a=src.indexOf('/*CORE_START*/'),b=src.indexOf('/*CORE_END*/');
+    if(a<0||b<0||b<a)return;
+    const wsrc=src.slice(a,b)
+      +'\nself.onmessage=function(e){var d=e.data;if(d&&d.type==="choose"){mode=d.mode;board=d.board;syncCand();self.postMessage({tok:d.tok,mv:aiChoose(d.p)});}};';
+    const w=new Worker(URL.createObjectURL(new Blob([wsrc],{type:'text/javascript'})));
+    w.onmessage=function(e){
+      const d=e.data;
+      if(!d||d.tok!==aiToken)return;             /* 悔棋/重开/切换后到达的迟到结果 */
+      const wait=Math.max(0,thinkMinT-Date.now());
+      setTimeout(()=>{
+        if(d.tok!==aiToken||over||turn!==aiP)return;
+        aiThinking=false;
+        if(d.mv)placeAt(d.mv.x,d.mv.y,aiP);
+        else noLegalAI();
+      },wait);
+    };
+    aiWorker=w;
+  }catch(err){aiWorker=null;}
+}
+function noLegalAI(){                            /* AI 全盘无合法着法：按连珠规则判负 */
+  over=true;winner=humanP;stopTimer();
+  onGameEnd(humanP);
+  updateHUD();saveSession();scheduleDraw();
+}
 function maybeAI(){
   if(over||mode==='pvp'||turn!==aiP)return;
   aiThinking=true;updateHUD();scheduleDraw();
   const tok=++aiToken;
+  thinkMinT=Date.now()+420+Math.random()*300;
+  if(aiWorker){
+    try{
+      aiWorker.postMessage({type:'choose',mode:mode,p:aiP,board:board.map(r=>r.slice()),tok:tok});
+      return;
+    }catch(err){aiWorker=null;}                    /* 投递失败立刻回退主线程 */
+  }
   setTimeout(()=>{
     if(tok!==aiToken||over||turn!==aiP){aiThinking=false;updateHUD();return;}
     const mv=aiChoose(aiP);
     aiThinking=false;
     if(mv)placeAt(mv.x,mv.y,aiP);
-    else{
-      /* 全盘扫描仍无可落点：黑方无合法着法按连珠规则判负，避免对局停在 AI 回合 */
-      over=true;winner=humanP;stopTimer();
-      onGameEnd(humanP);
-      updateHUD();saveSession();scheduleDraw();
-    }
-  },420+Math.random()*300);
+    else noLegalAI();
+  },Math.max(0,thinkMinT-Date.now()));
 }
 function undo(){
   if(aiThinking||!history.length)return;
@@ -1837,6 +1934,7 @@ function init(){
   applyAccent(settings.accent||'purple');
   applySide(settings.side);
   updateSoundUI();
+  initAiWorker();
   setMode(mode);
   /* 先读存档再 newGame（newGame 会清空存档） */
   const ses=LS.get('session',null);
