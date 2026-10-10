@@ -95,7 +95,7 @@ It is a **single, self-contained HTML file** with the markup, styles, and game l
 
 ### 1. A Complete Game in One HTML File
 
-`index.html` contains the markup, CSS, JavaScript, and icon, all inline. There is no build step, no package manager, and no backend to configure.
+`index.html` contains the markup, CSS, JavaScript, icon, and an embedded font subset, all inline. There is no build step, no package manager, and no backend to configure.
 
 ### 2. A Renju Rules Engine
 
@@ -145,6 +145,39 @@ Host the repository as a static site with GitHub Pages, Cloudflare Pages, Netlif
 ## 🔨 Development
 
 The whole game lives in one file. Edit `index.html`, save it, and reload the page.
+
+### Embedded Font
+
+The display font (Nebulove) ships inline as a base64 subset covering only the glyphs the UI actually renders (~50 KB), so the page never downloads a font. If you change any UI text, regenerate the subset or new characters will fall back to system fonts:
+
+```bash
+pip install fonttools brotli
+python3 scripts/subset_font.py          # rewrites the @font-face block in index.html
+python3 scripts/subset_font.py --check  # report which glyphs would change, write nothing
+```
+
+### Testing
+
+The `tests/` directory holds plain Node.js scripts (ESM, no build step):
+
+```bash
+# Rule engine & AI unit tests — 57 cases, zero dependencies
+node tests/renju-core-test.mjs
+
+# Full-game smoke through the real AI move path — zero dependencies
+node tests/ai-selfplay-smoke.mjs
+
+# AI strength benchmark (report only, ~1–2 min)
+node tests/ai-tournament.mjs
+
+# Browser end-to-end UI tests — 27 assertions (one-time setup required)
+python3 -m http.server 8600     # serve this directory
+npm i playwright-core @playwright/browser-chromium
+npx playwright-core install chromium-headless-shell
+node tests/renju-e2e.mjs
+```
+
+The unit and smoke suites assert on Renju rules, forbidden moves, and every AI search layer; the e2e suite additionally checks DOM behavior (foul markers, dialogs, records).
 
 <br>
 
