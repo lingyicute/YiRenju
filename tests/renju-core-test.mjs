@@ -22,9 +22,9 @@ eq('四四 at (7,7)',api.blackLegality(7,7),'44');
 /* (c) 长连禁手（缺口补成6连） */
 blank();put([[4,4],[5,4],[6,4],[7,4],[9,4]],BLACK);
 eq('长连 at (8,4)',api.blackLegality(8,4),'overline');
-/* (d) 一个方向恰5 + 另一方向长连 → 长连优先 */
+/* (d) 一个方向恰5 + 另一方向长连 → RIF：恰五优先于一切禁手（含长连），判胜 */
 blank();put([[4,4],[5,4],[6,4],[8,4],[7,5],[7,6],[7,7],[7,8],[7,9]],BLACK);
-eq('5+over→long at (7,4)',api.blackLegality(7,4),'overline');
+eq('5+over→win at (7,4)',api.blackLegality(7,4),'win');
 /* 黑棋恰好五连 = 合法胜招 */
 blank();put([[3,3],[4,3],[5,3],[6,3]],BLACK);
 eq('黑恰五 win at (7,3)',api.blackLegality(7,3),'win');
