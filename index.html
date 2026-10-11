@@ -154,6 +154,7 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
 .board-wrap{width:100%}
 #board{display:block;margin:18px auto 0;touch-action:manipulation;cursor:pointer;
   filter:drop-shadow(0 12px 30px color-mix(in srgb,#000 18%,transparent))}
+#board:focus-visible{outline:3px solid var(--primary);outline-offset:5px;border-radius:18px}
 
 /* 难度选择 chips */
 .modes{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;justify-content:center}
@@ -309,7 +310,7 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
   </section>
 
   <section class="board-wrap" id="boardWrap">
-    <canvas id="board"></canvas>
+    <canvas id="board" tabindex="0" role="application" aria-label="15×15 连珠棋盘。使用方向键或 WASD 移动光标，空格或回车落子"></canvas>
   </section>
 
   <section class="tools">
@@ -1867,6 +1868,7 @@ canvas.addEventListener('pointerdown',e=>{
     return;
   }
   e.preventDefault();
+  canvas.focus({preventScroll:true});
   tryPlaceFromEvent(e);
 });
 canvas.addEventListener('pointermove',e=>{
@@ -1886,6 +1888,7 @@ canvas.addEventListener('pointerup',e=>{
   if(e.pointerType!=='touch')return;
   if(touchTap&&e.pointerId===touchTap.id){
     touchTap=null;
+    canvas.focus({preventScroll:true});
     tryPlaceFromEvent(e);
   }
 });
@@ -1902,11 +1905,21 @@ document.addEventListener('keydown',e=>{
     if(e.key==='Escape')closeDialog();
     return;
   }
-  const tag=(document.activeElement&&document.activeElement.tagName)||'';
-  if(tag==='INPUT'||tag==='TEXTAREA')return;
   const k=e.key;
+  /* Escape 仍可关闭菜单；把焦点还给菜单按钮，避免焦点留在已隐藏菜单项上。 */
+  if(k==='Escape'&&menu.classList.contains('open')){
+    menu.classList.remove('open');
+    $('btnMenu').classList.remove('active');
+    $('btnMenu').focus();
+    return;
+  }
+  /* 不劫持按钮/链接/输入框的原生按键：Space/Enter 应触发其 click，
+     方向键也不应在用户操作控件时移动棋盘光标。棋盘本身可通过 Tab 聚焦。 */
+  const active=document.activeElement;
+  if(active&&(active.isContentEditable||active.closest('button,a,input,textarea,select,[role="button"],[role="menuitem"],[contenteditable="true"]')))return;
+  const tag=(active&&active.tagName)||'';
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(k))e.preventDefault();
-  if(menu.classList.contains('open')&&(k==='Escape')){menu.classList.remove('open');return;}
   const mv={
     ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],
     w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]
@@ -1923,7 +1936,6 @@ document.addEventListener('keydown',e=>{
   }
   if(k==='z'||k==='Z'){undo();return;}
   if(k==='r'||k==='R'){newGame();toast('已开始新对局');return;}
-  if(k==='Escape'&&menu.classList.contains('open'))menu.classList.remove('open');
 });
 $('btnUndo').addEventListener('click',undo);
 $('btnRestart').addEventListener('click',()=>{newGame();toast('已开始新对局');});
