@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-63%20KB-blue" alt="Self-contained HTML, approximately 63 KB"></a>
+  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-156%20KiB-blue" alt="Self-contained HTML, approximately 156 KiB"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Runtime%20Setup-None-brightgreen" alt="No runtime setup"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Network%20Requests-Zero-brightgreen" alt="Zero network requests"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/github/stars/lingyicute/YiRenju?style=flat&color=yellow" alt="GitHub Stars"></a>
@@ -165,7 +165,7 @@ python3 scripts/subset_font.py --check  # report which glyphs would change, writ
 The `tests/` directory holds plain Node.js scripts (ESM, no build step):
 
 ```bash
-# Rule engine & AI unit tests — 57 cases, zero dependencies
+# Rule engine & AI unit tests — 63 assertions, zero dependencies
 node tests/renju-core-test.mjs
 
 # Full-game smoke through the real AI move path — zero dependencies
@@ -174,7 +174,7 @@ node tests/ai-selfplay-smoke.mjs
 # AI strength benchmark (report only, ~1–2 min)
 node tests/ai-tournament.mjs
 
-# Browser end-to-end UI tests — 27 assertions (one-time setup required)
+# Browser end-to-end UI tests — 36 assertions (one-time setup required)
 python3 -m http.server 8600     # serve this directory
 npm i playwright-core @playwright/browser-chromium
 npx playwright-core install chromium-headless-shell
