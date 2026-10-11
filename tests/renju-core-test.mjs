@@ -6,7 +6,7 @@ if(!existsSync(pageUrl)){console.error('找不到 index.html（请在仓库根�
 const html=readFileSync(pageUrl,'utf8');
 const src=html.slice(html.indexOf('/*CORE_START*/'),html.indexOf('/*CORE_END*/'));
 const api=new Function(src+`
-return {N,EMPTY,BLACK,WHITE,candidates,runInfo,isWinRun,winCellsAt,blackLegality,blackMoveType,orderedMoves,negamax,blackWinPoint,fivePoint,winPointsAll,winPointsBoth,fourMoves,qNode,aiChoose,isLegalMoveAt,legalCandidatePoints,evalBoard,evalDiff,dirScore,splitScore,stoneScore,vctFindWin,vctDefend,guardSafe,guardBest,syncCand,setCell,pushStone,zobristInit,hashFromBoard,hashPlace,foulDraft:()=>{ttDraft++;},setQNodes:(v)=>{qNodes=v;},getQNodes:()=>qNodes,setVct:(ms)=>{vctDeadline=ms;vctAborted=false;vctNodeCount=0;},setMode:(m)=>{mode=m;},getBoard:()=>board,setBoard:(b)=>{board=b;syncCand();},setDeadline:(ms)=>{searchDeadline=ms;searchAborted=false;},getAborted:()=>searchAborted};`)();
+return {N,EMPTY,BLACK,WHITE,candidates,runInfo,isWinRun,winCellsAt,blackLegality,blackMoveType,orderedMoves,negamax,blackWinPoint,fivePoint,winPointsAll,winPointsBoth,winPointsOne,fourMoves,qNode,aiChoose,isLegalMoveAt,legalCandidatePoints,evalBoard,evalDiff,dirScore,splitScore,stoneScore,vctFindWin,vctDefend,guardSafe,guardBest,syncCand,setCell,pushStone,zobristInit,hashFromBoard,hashPlace,foulDraft:()=>{ttDraft++;},setQNodes:(v)=>{qNodes=v;},getQNodes:()=>qNodes,setVct:(ms)=>{vctDeadline=ms;vctAborted=false;vctNodeCount=0;},setMode:(m)=>{mode=m;},getBoard:()=>board,setBoard:(b)=>{board=b;syncCand();},setDeadline:(ms)=>{searchDeadline=ms;searchAborted=false;},getAborted:()=>searchAborted};`)();
 const {N,EMPTY,BLACK,WHITE}=api;
 let pass=0,fail=0;
 function eq(name,got,want){const ok=JSON.stringify(got)===JSON.stringify(want);ok?pass++:fail++;console.log((ok?'PASS':'FAIL')+' '+name+(ok?'':`  got=${JSON.stringify(got)} want=${JSON.stringify(want)}`));}
@@ -280,6 +280,25 @@ ck('aiChoose(expert) 不走杀',(()=>{
   const mv=api.aiChoose(BLACK);
   return !!mv&&((mv.x===5&&mv.y===4)||(mv.x===5&&mv.y===8));
 })(),true);
+/* (al) winPointsOne 与 winPointsBoth(p).mine 前两名逐点一致（含黑方恰好五连判定与空局面） */
+{
+  let okAll=true;
+  const fixtures=[
+    {stones:[[7,7],[7,8],[7,9],[7,10]],color:WHITE},    /* 白活四：两个杀点 */
+    {stones:[[3,3],[4,4],[5,5]],color:BLACK},           /* 黑三连：无杀点，黑白双视角 */
+    {stones:[[6,6],[8,8],[9,10],[10,11]],color:BLACK},  /* 黑斜四：两个杀点 */
+    {stones:[],color:BLACK}                             /* 空盘 */
+  ];
+  for(const f of fixtures){
+    blank();if(f.stones.length)put(f.stones,f.color);
+    for(const p of [BLACK,WHITE]){
+      const one=api.winPointsOne(p).map(m=>m.x*16+m.y);
+      const both=api.winPointsBoth(p).mine.slice(0,2).map(m=>m.x*16+m.y);
+      if(one.join()!==both.join())okAll=false;
+    }
+  }
+  ck('winPointsOne 与 winPointsBoth.mine 前两名一致（4 局面×双色）',okAll,true);
+}
 api.setMode('ai-easy');
 
 console.log(`\n${pass} passed, ${fail} failed`);
