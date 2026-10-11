@@ -392,7 +392,15 @@ function candTouch(x,y,d){
   for(let i=0;i<OFF2.length;i+=2){const nx=x+OFF2[i],ny=y+OFF2[i+1];if(inB(nx,ny))CAND2[nx*N+ny]+=d;}
 }
 function setCell(x,y,p){board[x][y]=p;candTouch(x,y,p?1:-1);}
-function pushStone(x,y,p){setCell(x,y,p);hashPlace(x,y,p);}
+function pushStone(x,y,p){
+  const old=board[x][y];
+  setCell(x,y,p);
+  /* Zobrist 增量维护：先撤旧子、再落新子（XOR 对合，EMPTY 只撤不落）。
+     旧版撤子统一传 EMPTY，而 hashPlace 把非黑一律按白键 XOR——每撤一颗黑子就
+     掺入一对白键噪声，zh1/zh2 随试撤次数漂移，同一局面从不同分支到达时键值不同，
+     置换表跨分支永不命中（TT 与 ttMove 排序实际失效）。 */
+  if(old!==p){hashPlace(x,y,old);hashPlace(x,y,p);}
+}
 function clearBoard(){          /* 原地清零：不重新赋值 board，避免任何已持有的引用失效 */
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)board[x][y]=EMPTY;
   CAND1.fill(0);CAND2.fill(0);
@@ -403,14 +411,19 @@ function syncCand(){
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)candTouch(x,y,1);
 }
 
-/* 经过 (x,y) 沿 (dx,dy) 的连子数与两端开放数（要求 board[x][y]===p） */
+/* 经过 (x,y) 沿 (dx,dy) 的连子数与两端开放数（要求 board[x][y]===p）。
+   返回复用的定长数组 RUN：这是全引擎最热的一段（evalPoint/isWinRun/禁手判定都走它），
+   原实现每次返回新 [c,o]，一次 3 秒搜索要产生上千万个短命数组喂给 GC。
+   调用方全部当场消费 r[0]/r[1]，无人跨调用持有该数组；勿让新调用方存下引用。 */
+const RUN=[0,0];
 function runInfo(x,y,dx,dy,p){
   let c=1,o=0,i=1,j=1,nx,ny;
   while(inB(nx=x+dx*i,ny=y+dy*i)&&board[nx][ny]===p){c++;i++;}
   if(inB(nx,ny)&&board[nx][ny]===EMPTY)o++;
   while(inB(nx=x-dx*j,ny=y-dy*j)&&board[nx][ny]===p){c++;j++;}
   if(inB(nx,ny)&&board[nx][ny]===EMPTY)o++;
-  return [c,o];
+  RUN[0]=c;RUN[1]=o;
+  return RUN;
 }
 function dirScore(c,o,side){
   if(c===5)return 1000000;                       /* 五连（黑棋必须恰好五连） */
@@ -734,11 +747,17 @@ function zobristInit(){
   ZR=new Array(N);
   for(let x=0;x<N;x++){ZR[x]=new Array(N);for(let y=0;y<N;y++)ZR[x][y]=[rnd(),rnd(),rnd(),rnd()];}
 }
-function hashPlace(x,y,p){if(!ZR)return;const z=ZR[x][y],i=p===BLACK?0:2;zh1^=z[i];zh2^=z[i+1];}
+function hashPlace(x,y,p){if(!ZR||p===EMPTY)return;const z=ZR[x][y],i=p===BLACK?0:2;zh1^=z[i];zh2^=z[i+1];}
 function hashFromBoard(){
   zh1=0;zh2=0;
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)hashPlace(x,y,board[x][y]);
 }
+/* 胜负分归一化：胜负分携带深度加成（±(9000000+depth*1000)），直接入表会在跨深度
+   取回时漂移——同一条胜线在不同剩余深度下分值不同，会反过来偏爱慢胜/急败。
+   存表剥掉深度加成、取回按当前深度加回，使 TT 胜负分与发现深度无关。
+   |v|>8900000 一律按胜负分处理（百步内不变号），其余分值原样存取。 */
+function ttIn(v,d){return v>8900000?v-d*1000:v<-8900000?v+d*1000:v;}
+function ttOut(v,d){return v>8900000?v+d*1000:v<-8900000?v-d*1000:v;}
 /* 收集距离已有棋子 dist 内的空点作为候选（读 CAND 计数表，按行序输出） */
 function candidates(dist){
   const cnt=dist<=1?CAND1:CAND2,out=[];
@@ -1005,9 +1024,10 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
   let ttMove=null;
   if(e&&e.k1===k1&&e.k2===k2&&e.dn===ttDraft){
     if(e.d>=depth){
-      if(e.f===0)return e.v;
-      if(e.f===1&&e.v<=alpha)return e.v;
-      if(e.f===2&&e.v>=beta)return e.v;
+      const ev=ttOut(e.v,depth);
+      if(e.f===0)return ev;
+      if(e.f===1&&ev<=alpha)return ev;
+      if(e.f===2&&ev>=beta)return ev;
     }
     if(e.m)ttMove=e.m;            /* 深度不够时只借用它记录的最佳着法 */
   }
@@ -1038,11 +1058,19 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
     }
   }
   if(!moves.length)return qNode(p,alpha,beta,VCF_PLY);
-  let best=-Infinity,bx=-1,by=-1;
+  let best=-Infinity,bx=-1,by=-1,pv=true;
   for(const m of moves){
     pushStone(m.x,m.y,p);
     searchPly++;
-    const v=-negamax(depth-1,-beta,-alpha,3-p,m.x,m.y);
+    let v;
+    /* PVS：主变首着全窗定标尺；其余着法先零窗试探，证明可能更好才全窗复核，剪枝只多不少 */
+    if(pv){
+      v=-negamax(depth-1,-beta,-alpha,3-p,m.x,m.y);
+      pv=false;
+    }else{
+      v=-negamax(depth-1,-alpha-1,-alpha,3-p,m.x,m.y);
+      if(v>alpha&&v<beta)v=-negamax(depth-1,-beta,-alpha,3-p,m.x,m.y);
+    }
     searchPly--;
     pushStone(m.x,m.y,EMPTY);
     if(v>best){best=v;bx=m.x;by=m.y;}
@@ -1054,13 +1082,13 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
   }
   if(searchAborted)return best;   /* 被时间截断的半截结果不写表，否则会污染同代其它结点 */
   if(!TT_DEPTH_PREF){
-    TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
+    TT[ti]={k1,k2,dn:ttDraft,d:depth,v:ttIn(best,depth),f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
   }else{
     /* ⑲-d 深度优先替换：碰撞槽里不同局面的更深条目优先保留——
        无条件覆盖会让一次浅层搜索挤掉迭代加深最想复用的深层结果。 */
     const old=TT[ti];
     if(!old||(old.k1===k1&&old.k2===k2)||old.dn!==ttDraft||old.d<=depth)
-      TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
+      TT[ti]={k1,k2,dn:ttDraft,d:depth,v:ttIn(best,depth),f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
   }
   return best;
 }
