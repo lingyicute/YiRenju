@@ -1,0 +1,36 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  core-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Rule engine & AI unit tests
+        run: node tests/renju-core-test.mjs
+      - name: Full-game smoke (real aiChoose path)
+        run: node tests/ai-selfplay-smoke.mjs
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Playwright chromium (headless shell)
+        run: |
+          npm i --no-save playwright-core @playwright/browser-chromium
+          npx playwright-core install --with-deps chromium-headless-shell
+      - name: Serve and run browser e2e
+        run: |
+          python3 -m http.server 8600 &
+          sleep 1
+          node tests/renju-e2e.mjs
