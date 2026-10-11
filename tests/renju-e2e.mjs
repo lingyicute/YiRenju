@@ -74,6 +74,35 @@ await page.keyboard.press('ArrowRight');
 ok('棋盘可聚焦且方向键移动光标',await page.evaluate(()=>cursor.x===8&&cursor.y===7&&kbdCursor));
 await page.evaluate(()=>{setMode('ai-easy');newGame();});
 
+/* P0 回归：执白 + 存档停在人类回合时刷新页面，恢复后不得冻结（aiThinking 不得卡死） */
+await page.evaluate(()=>{
+  history.length=0; /* 阻止 visibilitychange/beforeunload 在 reload 时用内存对局覆盖刚写入的存档 */
+  localStorage.setItem('yirenju.settings',JSON.stringify({side:'W',mode:'ai-easy'}));
+  localStorage.setItem('yirenju.session',JSON.stringify({mode:'ai-easy',over:false,side:'W',elapsed:0,
+    moves:[{x:7,y:7},{x:8,y:8},{x:7,y:9}]}));
+});
+await page.reload();await page.waitForTimeout(250);
+ok('P0 恢复后不残留卡死思考态',await page.evaluate(()=>aiThinking===false&&history.length===3&&turn===2),
+  'st='+await page.evaluate(()=>({a:aiThinking,h:history.length,t:turn})));
+await clickCell(10,10);await page.waitForTimeout(120);
+ok('P0 恢复后点击落子不被吞',(await histLen())>=4,'len='+(await histLen()));
+
+/* P1 回归：畸形存档必须整档作废并可用（越界坐标 / 重复落点两种） */
+for(const bad of [[{x:99,y:-3}],[{x:5,y:5},{x:5,y:5}]]){
+  await page.evaluate(b=>{
+    history.length=0; /* 同上：否则 reload 触发的 saveSession 会把内存对局（含 side）回写覆盖 */
+    localStorage.setItem('yirenju.settings',JSON.stringify({side:'B',mode:'pvp'}));
+    localStorage.setItem('yirenju.session',JSON.stringify({mode:'pvp',over:false,moves:b}));
+  },bad);
+  await page.reload();await page.waitForTimeout(250);
+  ok('P1 畸形存档后页面可用 '+JSON.stringify(bad[0]),await page.evaluate(()=>{
+    setMode('pvp');newGame();placeAt(7,7,turn);return history.length===1;
+  }));
+}
+await page.evaluate(()=>{history.length=0;localStorage.clear();}); /* 先断回写源再清，否则清了也白清 */
+await page.reload();await page.waitForTimeout(250);
+await page.evaluate(()=>{setMode('ai-easy');newGame();});
+
 /* 2. PvP：三三禁手拒绝落子 + ×标记 */
 await page.evaluate(()=>{setMode('pvp');newGame();});
 for(const [x,y] of [[6,7],[13,13],[8,7],[13,12],[7,6],[13,11],[7,8],[12,13]])await clickCell(x,y);
