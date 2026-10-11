@@ -524,8 +524,10 @@ function ptsToFiveThrough(x,y,dx,dy,p){
   return cnt;
 }
 function ptsToExactlyFiveThrough(x,y,dx,dy){return ptsToFiveThrough(x,y,dx,dy,BLACK);}
-/* 延伸点 q 自身合法性：补黑后无长连 且 不同方向不同时形成两个四（活三要求延伸可行） */
-function blackExtensionLegal(qx,qy){
+/* 延伸点 q 自身合法性：补黑后无长连 且 不同方向不同时形成两个四（活三要求延伸可行）。
+   P2 补全（RIF 递归条款）：延伸点自身若构成三三禁手，该「活三」不成立——
+   换成带深度保护的完整 blackMoveType 判定；depth>=1 不再向下递归，退化为快检。 */
+function blackExtensionLegal(qx,qy,depth){
   for(const d of DIRS){
     if(runInfo(qx,qy,d[0],d[1],BLACK)[0]>=6)return false;
   }
@@ -534,11 +536,15 @@ function blackExtensionLegal(qx,qy){
     if(ptsToExactlyFiveThrough(qx,qy,d[0],d[1])>=1)fours++;
     if(fours>=2)return false;
   }
+  if((depth|0)<1){
+    const t=blackMoveType(qx,qy,1);
+    if(t!=='ok'&&t!=='win')return false;
+  }
   return true;
 }
 /* 该方向上是否存在「活三」：存在相连空点 q，补黑后形成以 (x,y) 参与的双头活四，
    且该延伸点自身不是禁手 */
-function isFreeThreeDir(x,y,dx,dy){
+function isFreeThreeDir(x,y,dx,dy,depth){
   for(let o=-4;o<=4;o++){
     if(o===0)continue;
     const nx=x+dx*o,ny=y+dy*o;
@@ -546,7 +552,7 @@ function isFreeThreeDir(x,y,dx,dy){
     if(!linkedTo(x,y,dx,dy,o,BLACK))continue;
     board[nx][ny]=BLACK;
     const open4=ptsToExactlyFiveThrough(x,y,dx,dy)>=2 /* 两个不同成五点＝活四 */
-      &&blackExtensionLegal(nx,ny);
+      &&blackExtensionLegal(nx,ny,depth);
     board[nx][ny]=EMPTY;
     if(open4)return true;
   }
@@ -566,7 +572,8 @@ function winCount(x,y,dx,dy,p){
 }
 /* 黑棋落子禁手判定。调用前需已将黑子临时放在 (x,y)。
    返回 'win'（合法五连）/ 'overline'（长连）/ '44'（四四）/ '33'（三三）/ 'ok' */
-function blackMoveType(x,y){
+function blackMoveType(x,y,depth){
+  depth=depth|0;
   let overline=false,five=false,p4=0,p3=0;
   const pot=[0,0,0,0];
   for(let i=0;i<4;i++){
@@ -579,8 +586,8 @@ function blackMoveType(x,y){
     if(w>=3)p4++;
     if(w>=2)p3++;
   }
-  if(overline)return 'overline'; /* 长连优先于五连 */
-  if(five)return 'win';
+  if(five)return 'win';        /* RIF：五连优先于一切禁手（含长连） */
+  if(overline)return 'overline';
   /* 本文件最大的热点：原版对每个候选点都要做全窗枚举（占单手可用时长的近一半），
      而绝大多数点根本没有可能在两个方向上同时成四或成三。 */
   if(p4<2&&p3<2)return 'ok';
@@ -590,7 +597,7 @@ function blackMoveType(x,y){
     if(pot[i]>=3&&ptsToExactlyFiveThrough(x,y,dx,dy)>=1){
       fours++;
       if(fours>=2)return '44';
-    }else if(pot[i]>=2&&isFreeThreeDir(x,y,dx,dy)){ /* 同一方向是四即不再按三计 */
+    }else if(pot[i]>=2&&isFreeThreeDir(x,y,dx,dy,depth)){ /* 同一方向是四即不再按三计 */
       threes++;
       if(threes>=2)return '33';
     }
@@ -1114,6 +1121,7 @@ function guardBest(p,root,deadline){
   return null;
 }
 /* AI 选择着点（内部实现）。p 为 AI 执子（黑方着法自动经过禁手过滤） */
+function stonesOnBoard(){let n=0;for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)n++;return n;}
 function aiChooseRaw(p){
   const op=3-p;
   const tStart=Date.now();                       /* 本手计时起点：VCT 与迭代加深共用同一时限 */
@@ -1189,6 +1197,9 @@ function aiChooseRaw(p){
   }
   if(!root.length)return null;
   let best=root[0],bestV=-Infinity;
+  /* P1 开局多样性：≤8 子时根节点改用全窗口逐手精确打分，末层分值接近者入池随机——
+     老版本的同分随机从未触发过（每层都有严格唯一最优），Expert 开局是一套固定谱。 */
+  const OPENING=stonesOnBoard()<8;let openScores=null;
   for(const depth of cfg.d){
     if(depth>2&&searchDeadline-Date.now()<budget*0.15)break;
     let cur=null,curV=-Infinity,n=0,rootAlpha=-Infinity;
@@ -1198,7 +1209,7 @@ function aiChooseRaw(p){
       pushStone(m.x,m.y,p);
       /* 根节点窗口：只需判断能否超过当前最好值，子搜索上界取 -rootAlpha */
       searchPly=1;
-      const v=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,-rootAlpha,op,m.x,m.y);
+      const v=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,OPENING?Infinity:-rootAlpha,op,m.x,m.y);
       searchPly=0;
       pushStone(m.x,m.y,EMPTY);
       if(searchAborted)break;     /* 被时限截断的那一手，数值来自未搜完的子树，不计入本层 */
@@ -1224,10 +1235,16 @@ function aiChooseRaw(p){
       if(pool.length>1)cur=pool[(Math.random()*pool.length)|0];
     }
     /* 整层跑完才可信；被截断的层只有明显优于上一层才采纳（原作者的启发式，保留） */
-    if(cur&&(n===root.length||curV>bestV)){best=cur;bestV=curV;}
+    if(cur&&(n===root.length||curV>bestV)){best=cur;bestV=curV;if(OPENING&&!searchAborted&&n===root.length)openScores=scored;}
     if(searchAborted||bestV>=8900000)break;   /* 已算出必杀，把时间还给玩家 */
     scored.sort((a,b)=>b[0]-a[0]);
     root=scored.map(s=>s[1]);                 /* 用本层评估序作为下一层的搜索次序 */
+  }
+  /* 开局随机：末层全窗精确分不劣于 bestV-1200 的一并入池随机。EPS 取断三（3000）一档之下，
+     只交换等价/近等价开局着，不跨形档降强度；送杀闸门仍在更后面兜底。 */
+  if(OPENING&&openScores&&bestV<8900000){
+    const pool=openScores.filter(s=>s[0]>=bestV-1200).map(s=>s[1]);
+    if(pool.length>1)best=pool[(Math.random()*pool.length)|0];
   }
   if(VCF_GUARD&&best&&bestV<8900000){
     /* 送杀检查：最优着若把对手可证明的强制杀放上了棋盘，顺延到首个安全候选；
@@ -1620,7 +1637,7 @@ function initAiWorker(){
       if(!d||d.tok!==aiToken)return;             /* 悔棋/重开/切换后到达的迟到结果 */
       const wait=Math.max(0,thinkMinT-Date.now());
       setTimeout(()=>{
-        if(d.tok!==aiToken||over||turn!==aiP)return;
+        if(d.tok!==aiToken||over||turn!==aiP){aiThinking=false;updateHUD();return;} /* P0：与主线程回退路径对齐，失效结果不得留下卡死的思考态 */
         aiThinking=false;
         if(d.mv)placeAt(d.mv.x,d.mv.y,aiP);
         else noLegalAI();
@@ -2000,21 +2017,36 @@ function init(){
   /* 先读存档再 newGame（newGame 会清空存档） */
   const ses=LS.get('session',null);
   newGame();
-  if(ses&&ses.moves&&ses.moves.length&&!ses.over&&MODES_OK(ses.mode)){
-    setMode(ses.mode);
-    if(ses.side)applySide(ses.side);
-    newGame();
-    ses.moves.forEach(m=>{
-      setCell(m.x,m.y,turn);
-      history.push({x:m.x,y:m.y,p:turn,at:0});
-      turn=3-turn;
-    });
-    turn=history.length%2===0?BLACK:WHITE;
-    elapsed=Math.max(0,ses.elapsed|0);
-    $('timer').textContent=fmt(elapsed);
-    if(history.length)startTimer();
-    updateHUD();saveSession();scheduleDraw();
-    if(mode!=='pvp'&&turn===aiP)maybeAI();
+  if(ses&&Array.isArray(ses.moves)&&ses.moves.length&&!ses.over&&MODES_OK(ses.mode)){
+    try{
+      /* P1：存档逐手校验（整数坐标、盘内、落点为空），任何一手畸形即整档作废。
+         原实现对内容零校验，异常逃出 init() 会跳过末尾 fitBoard()，整页棋盘报废。 */
+      const coordOK=ses.moves.every(m=>Number.isInteger(m.x)&&Number.isInteger(m.y)
+        &&m.x>=0&&m.x<N&&m.y>=0&&m.y<N);
+      if(!coordOK)throw new Error('corrupt session');
+      setMode(ses.mode);
+      if(ses.side)applySide(ses.side);
+      newGame();
+      for(const m of ses.moves){
+        if(board[m.x][m.y]!==EMPTY)throw new Error('corrupt session'); /* 重复落点 */
+        setCell(m.x,m.y,turn);
+        history.push({x:m.x,y:m.y,p:turn,at:0});
+        turn=3-turn;
+      }
+      turn=history.length%2===0?BLACK:WHITE;
+      /* P0：作废恢复前 newGame 已投出的 AI 任务，并清掉它留下的思考态——
+         存档停在人类回合时，那份迟到结果曾把 aiThinking 卡死在 true（整盘冻结）。 */
+      aiToken++;aiThinking=false;
+      elapsed=Math.max(0,ses.elapsed|0);
+      $('timer').textContent=fmt(elapsed);
+      if(history.length)startTimer();
+      updateHUD();saveSession();scheduleDraw();
+      if(mode!=='pvp'&&turn===aiP)maybeAI();
+    }catch(err){
+      LS.set('session',null);
+      newGame();
+      updateHUD();scheduleDraw();
+    }
   }
   fitBoard();
   setTimeout(fitBoard,80);
