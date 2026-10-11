@@ -6,7 +6,7 @@ if(!existsSync(pageUrl)){console.error('找不到 index.html（请在仓库根�
 const html=readFileSync(pageUrl,'utf8');
 const src=html.slice(html.indexOf('/*CORE_START*/'),html.indexOf('/*CORE_END*/'));
 const api=new Function(src+`
-return {N,EMPTY,BLACK,WHITE,candidates,runInfo,isWinRun,winCellsAt,blackLegality,blackMoveType,orderedMoves,negamax,blackWinPoint,fivePoint,winPointsAll,winPointsBoth,winPointsOne,fourMoves,qNode,aiChoose,isLegalMoveAt,legalCandidatePoints,evalBoard,evalDiff,dirScore,splitScore,stoneScore,vctFindWin,vctDefend,guardSafe,guardBest,syncCand,setCell,pushStone,zobristInit,hashFromBoard,hashPlace,foulDraft:()=>{ttDraft++;},setQNodes:(v)=>{qNodes=v;},getQNodes:()=>qNodes,setVct:(ms)=>{vctDeadline=ms;vctAborted=false;vctNodeCount=0;},setMode:(m)=>{mode=m;},getBoard:()=>board,setBoard:(b)=>{board=b;syncCand();},setDeadline:(ms)=>{searchDeadline=ms;searchAborted=false;},getAborted:()=>searchAborted};`)();
+return {N,EMPTY,BLACK,WHITE,candidates,runInfo,isWinRun,winCellsAt,blackLegality,blackMoveType,orderedMoves,negamax,blackWinPoint,fivePoint,winPointsAll,winPointsBoth,winPointsOne,fourMoves,qNode,aiChoose,isLegalMoveAt,legalCandidatePoints,evalBoard,evalDiff,dirScore,splitScore,stoneScore,vctFindWin,vctDefend,guardSafe,guardBest,syncCand,setCell,pushStone,zobristInit,hashFromBoard,hashPlace,getHash:()=>[zh1,zh2],foulDraft:()=>{ttDraft++;},setQNodes:(v)=>{qNodes=v;},getQNodes:()=>qNodes,setVct:(ms)=>{vctDeadline=ms;vctAborted=false;vctNodeCount=0;},setMode:(m)=>{mode=m;},getBoard:()=>board,setBoard:(b)=>{board=b;syncCand();},setDeadline:(ms)=>{searchDeadline=ms;searchAborted=false;},getAborted:()=>searchAborted};`)();
 const {N,EMPTY,BLACK,WHITE}=api;
 let pass=0,fail=0;
 function eq(name,got,want){const ok=JSON.stringify(got)===JSON.stringify(want);ok?pass++:fail++;console.log((ok?'PASS':'FAIL')+' '+name+(ok?'':`  got=${JSON.stringify(got)} want=${JSON.stringify(want)}`));}
@@ -298,6 +298,16 @@ ck('aiChoose(expert) 不走杀',(()=>{
     }
   }
   ck('winPointsOne 与 winPointsBoth.mine 前两名一致（4 局面×双色）',okAll,true);
+}
+/* (am) Zobrist 撤销对合：试落再撤，哈希须回到原值（回归：撤黑子曾掺白键噪声致 TT 失效） */
+blank();put([[7,7]],BLACK);
+api.zobristInit();api.hashFromBoard();
+{
+  const h0=api.getHash().join(',');
+  api.pushStone(8,8,BLACK);api.pushStone(8,8,EMPTY);
+  ck('Zobrist 撤黑子对合',api.getHash().join(','),h0);
+  api.pushStone(9,9,WHITE);api.pushStone(9,9,EMPTY);
+  ck('Zobrist 撤白子对合',api.getHash().join(','),h0);
 }
 api.setMode('ai-easy');
 
