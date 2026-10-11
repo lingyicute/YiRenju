@@ -55,6 +55,25 @@ async function clickCell(x,y){
 const histLen=()=>page.evaluate(()=>history.length);
 const dlgText=async()=>(await page.$eval('#dialog',el=>el.textContent).catch(()=>''))||'';
 
+/* 控件获得焦点时保留 Space 的原生激活；游戏快捷键仅在棋盘/页面焦点时接管。 */
+await page.evaluate(()=>{setMode('pvp');newGame();placeAt(7,7,turn);placeAt(8,8,turn);});
+await page.locator('#btnUndo').focus();
+await page.keyboard.press('Space');
+await page.waitForTimeout(80);
+ok('Space 在悔棋按钮上触发原生悔棋',(await histLen())===1,'len='+(await histLen()));
+await page.evaluate(()=>newGame());
+await page.locator('#btnMenu').click();
+await page.locator('.menu-item[data-act="help"]').focus();
+await page.keyboard.press('Space');
+await page.waitForTimeout(80);
+ok('Space 在菜单项上打开规则对话框而不落子',(await histLen())===0&&(await dlgText()).includes('规则说明'));
+await page.keyboard.press('Escape');
+await page.evaluate(()=>{closeDialog();menu.classList.remove('open');cursor={x:7,y:7};kbdCursor=false;newGame();});
+await page.locator('#board').focus();
+await page.keyboard.press('ArrowRight');
+ok('棋盘可聚焦且方向键移动光标',await page.evaluate(()=>cursor.x===8&&cursor.y===7&&kbdCursor));
+await page.evaluate(()=>{setMode('ai-easy');newGame();});
+
 /* 2. PvP：三三禁手拒绝落子 + ×标记 */
 await page.evaluate(()=>{setMode('pvp');newGame();});
 for(const [x,y] of [[6,7],[13,13],[8,7],[13,12],[7,6],[13,11],[7,8],[12,13]])await clickCell(x,y);
