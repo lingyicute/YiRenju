@@ -1,0 +1,15 @@
+{
+  "name": "yirenju",
+  "version": "1.0.0",
+  "description": "YiRenju — single-file Renju (Gomoku with forbidden moves) in one self-contained HTML file",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node tests/renju-core-test.mjs && node tests/ai-selfplay-smoke.mjs",
+    "test:core": "node tests/renju-core-test.mjs",
+    "test:smoke": "node tests/ai-selfplay-smoke.mjs",
+    "test:tournament": "node tests/ai-tournament.mjs",
+    "test:e2e": "node tests/renju-e2e.mjs"
+  },
+  "license": "AGPL-3.0-only"
+}
