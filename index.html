@@ -426,6 +426,10 @@ function dirScore(c,o,side){
    （连续棋形仍由 dirScore 负责，不重复计分）。断四的威胁与连续冲四相当。 */
 const SPLIT3=3000,SPLIT4=12000;
 function splitScore(x,y,dx,dy,p){
+  /* 下界筛（与 winCount 在禁手判定里的用法同构）：分离形至少要有 3 个己方子落在某个
+     含 (x,y) 的 5 格窗内，(x,y) 占 1 子，其余子必在 ±4 内 ⇒ 同色邻子不足 2 直接放弃
+     5×5 窗扫描。orderedMoves→evalPoint 是搜索的第一热点，中盘大多数方向过不了这道筛子。 */
+  if(winCount(x,y,dx,dy,p)<2)return 0;
   const op=3-p;let s=0;
   for(let o=-4;o<=0;o++){            /* 窗口起点：窗口覆盖 (x,y) */
     let k=0,mn=5,mx=-5,ok=true;
@@ -642,9 +646,23 @@ function winPointsBoth(p){
   }
   return {mine:mine,opp:opp};
 }
-/* p 方当前的一步取胜点（黑棋只含合法恰好五连；至多两个已足够） */
+/* p 方当前的一步取胜点（黑棋只含合法恰好五连；至多两个已足够）。
+   单侧扫描版：与 winPointsBoth(p).mine 逐点一致（同为行序最先的至多两个），但只问一侧时
+   不必替对面也算一遍——negamax 的强制应着判定、VCT 的 vctA/vctD 每个结点都要单侧问一次，
+   分开算等于把整轮形态计算做两遍。 */
+function winPointsOne(p){
+  const out=[];
+  for(const c of candidates(1)){
+    if(board[c[0]][c[1]]!==EMPTY)continue;
+    board[c[0]][c[1]]=p;
+    const hit=p===BLACK?blackWinAt(c[0],c[1]):isWinRun(c[0],c[1],p);
+    board[c[0]][c[1]]=EMPTY;
+    if(hit){out.push({x:c[0],y:c[1]});if(out.length>=2)break;}
+  }
+  return out;
+}
 function winPointsAll(p){
-  return winPointsBoth(p).mine;
+  return winPointsOne(p);
 }
 /* p 方的「冲四着」：落下后产生至少一个方向可在下一手取胜（黑方只含合法着法） */
 function fourMoves(p,cap){
@@ -970,10 +988,11 @@ const TT_DEPTH_PREF=true;         /* ⑲-d：置换表深度优先替换（不�
 const VCF_GUARD=true,GUARD_MS=100,GUARD_DEPTH=4;
 /* 各难度搜索配置：d=迭代加深层数序列，t=每手时间上限(ms)，w=根节点候选宽度。
    原版深度序列写死（困难止于 4 层、专家止于 6 层），实测常规局面 99% 以上时间未用满；
-   这里加深到能在时限内完成的层数，由下方时间控制兜底截断。 */
+   这里加深到能在时限内完成的层数，由下方时间控制兜底截断。搜索提速后尾档通常能整层跑完，
+   再多留一档把剩余预算换成深度；开不起的档会被时间控制拦下或截断，不影响已完成的层。 */
 const AI_CFG={
-  'ai-hard':{d:[2,4,6],t:1200,w:12},
-  'ai-expert':{d:[2,4,6,8],t:3000,w:16}
+  'ai-hard':{d:[2,4,6,8],t:1200,w:12},
+  'ai-expert':{d:[2,4,6,8,10],t:3000,w:16}
 };
 function negamax(depth,alpha,beta,p,lastX,lastY){
   if(lastX>=0&&isWinRun(lastX,lastY,3-p))return -9000000-depth*1000;
@@ -1182,9 +1201,11 @@ function aiChooseRaw(p){
     scored.sort((a,b)=>b[0]-a[0]);
     root=scored.map(s=>s[1]);                 /* 用本层评估序作为下一层的搜索次序 */
   }
-  if(VCF_GUARD&&best&&!searchAborted&&bestV<8900000){
+  if(VCF_GUARD&&best&&bestV<8900000){
     /* 送杀检查：最优着若把对手可证明的强制杀放上了棋盘，顺延到首个安全候选；
-       全部候选都走杀（或没时间复核）时维持原手。 */
+       全部候选都走杀（或没时间复核）时维持原手。
+       不再因 searchAborted 跳过：时限已给闸门预留 GUARD_MS，够不够由下面的 left 判断——
+       加深档被截断是常态，若因此弃检，尾档越深反而越容易漏掉送杀。 */
     const left=tStart+budget-Date.now();
     if(left>=30){
       const keep=guardBest(p,root,Date.now()+Math.min(left,GUARD_MS*3));
