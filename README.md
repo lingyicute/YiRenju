@@ -45,8 +45,8 @@ It is a **single, self-contained HTML file** with the markup, styles, and game l
 - **🤖 Four AI Levels**
   - **Easy:** random moves near the action, weighted toward stronger points. It takes winning moves and always blocks an immediate win.
   - **Medium:** ranks moves by attack and defense value, with some randomness.
-  - **Hard:** iteratively deepens 2 → 6 plies (its move and your reply), with a 1.2-second limit per move.
-  - **Expert:** iteratively deepens 2 → 8 plies with a 3-second limit per move, and stops as soon as a forced win is proven.
+  - **Hard:** iteratively deepens 2 → 8 plies (its move and your reply), with a 1.2-second limit per move.
+  - **Expert:** iteratively deepens 2 → 10 plies with a 3-second limit per move, and stops as soon as a forced win is proven.
   - Choose to play **Black (first)** or **White (second)**. Changing it starts a new game.
 
 - **👥 Local Two-Player**
