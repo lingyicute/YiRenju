@@ -5,10 +5,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "node tests/renju-core-test.mjs && node tests/tt-mate-regression-test.mjs && node tests/ai-search-regression.mjs && node tests/ai-selfplay-smoke.mjs",
+    "test": "node tests/renju-core-test.mjs && node tests/tt-mate-regression-test.mjs && node tests/ai-search-regression.mjs && node tests/ai-opt-regression.mjs && node tests/ai-selfplay-smoke.mjs",
     "test:core": "node tests/renju-core-test.mjs",
     "test:tt": "node tests/tt-mate-regression-test.mjs",
     "test:search": "node tests/ai-search-regression.mjs",
+    "test:opt": "node tests/ai-opt-regression.mjs",
     "test:smoke": "node tests/ai-selfplay-smoke.mjs",
     "test:tournament": "node tests/ai-tournament.mjs",
     "test:e2e": "node tests/renju-e2e.mjs"
