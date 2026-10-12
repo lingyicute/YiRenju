@@ -714,7 +714,9 @@ function fourMoves(p,cap){
    能看见并打出多步连续冲四的必杀/必防序列 */
 let qNodes=0;
 function qNode(p,alpha,beta,qd){
-  if((++qNodes&1023)===0&&Date.now()>searchDeadline)searchAborted=true;
+  qNodes++;
+  /* 静默子树也受同一时限约束；不能等到第 1024 个结点才首次检查。 */
+  if(searchAborted||Date.now()>searchDeadline)searchAborted=true;
   if(searchAborted)return evalDiff(p);
   const w=winPointsBoth(p);
   if(w.mine.length)return 9000000+qd*10;             /* 轮到我走且有胜点 */
@@ -1022,7 +1024,7 @@ const AI_CFG={
 };
 function negamax(depth,alpha,beta,p,lastX,lastY){
   if(lastX>=0&&isWinRun(lastX,lastY,3-p))return -9000000-depth*1000;
-  if(Date.now()>searchDeadline){searchAborted=true;return evalDiff(p);}
+  if(searchAborted||Date.now()>searchDeadline){searchAborted=true;return evalDiff(p);}
   /* 速胜检出：当前方有一步取胜点直接返回 */
   if((p===WHITE?fivePoint(WHITE):blackWinPoint()))return 9000000+depth*1000;
   /* 置换表探测 */
@@ -1076,10 +1078,13 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
       pv=false;
     }else{
       v=-negamax(depth-1,-alpha-1,-alpha,3-p,m.x,m.y);
-      if(v>alpha&&v<beta)v=-negamax(depth-1,-beta,-alpha,3-p,m.x,m.y);
+      if(!searchAborted&&v>alpha&&v<beta)v=-negamax(depth-1,-beta,-alpha,3-p,m.x,m.y);
     }
     searchPly--;
     pushStone(m.x,m.y,EMPTY);
+    /* 先完整撤销，再沿调用栈退出；不搜兄弟、不更新 killer/TT。
+       此返回值只是占位，根节点会丢弃本轮未完成结果。 */
+    if(searchAborted)return 0;
     if(v>best){best=v;bx=m.x;by=m.y;}
     if(v>alpha)alpha=v;
     if(alpha>=beta){
@@ -1234,8 +1239,10 @@ function aiChooseRaw(p){
       }
       if(pool.length>1)cur=pool[(Math.random()*pool.length)|0];
     }
-    /* 整层跑完才可信；被截断的层只有明显优于上一层才采纳（原作者的启发式，保留） */
-    if(cur&&(n===root.length||curV>bestV)){best=cur;bestV=curV;if(OPENING&&!searchAborted&&n===root.length)openScores=scored;}
+    /* 不同深度的分数不可直接比较。只有全部根着搜索完成才提交；
+       首层也没完成时，保留已经过合法性过滤的静态首选作为兜底。
+       同分复核超时不影响主循环已经完成的精确最优着。 */
+    if(cur&&n===root.length){best=cur;bestV=curV;if(OPENING&&!searchAborted)openScores=scored;}
     if(searchAborted||bestV>=8900000)break;   /* 已算出必杀，把时间还给玩家 */
     scored.sort((a,b)=>b[0]-a[0]);
     root=scored.map(s=>s[1]);                 /* 用本层评估序作为下一层的搜索次序 */
@@ -1253,7 +1260,9 @@ function aiChooseRaw(p){
        加深档被截断是常态，若因此弃检，尾档越深反而越容易漏掉送杀。 */
     const left=tStart+budget-Date.now();
     if(left>=30){
-      const keep=guardBest(p,root,Date.now()+Math.min(left,GUARD_MS*3));
+      /* 闸门只能否决当前最佳着，不能因旧排序或随机同分而擅自换着。 */
+      const guardRoot=[best,...root.filter(m=>m.x!==best.x||m.y!==best.y)];
+      const keep=guardBest(p,guardRoot,Date.now()+Math.min(left,GUARD_MS*3));
       if(keep)best=keep;
     }
   }
