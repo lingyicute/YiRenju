@@ -75,14 +75,19 @@ function nWinPointsOne(p){
   return out;
 }
 function nWinPointsBoth(p){
+  /* 参考语义与现行契约对齐：调用方只区分 0/1/≥2，各侧按行序计到 2 即停（与 winPointsOne 一致）。 */
   const op=3-p,mine=[],opp=[];
   for(const c of candidates(1)){
     const x=c[0],y=c[1];
     if(board[x][y]!==EMPTY)continue;
-    if(p===BLACK){board[x][y]=BLACK;if(blackWinAt(x,y))mine.push({x:x,y:y});board[x][y]=EMPTY;}
-    else{board[x][y]=WHITE;if(isWinRun(x,y,WHITE))mine.push({x:x,y:y});board[x][y]=EMPTY;}
-    if(op===BLACK){board[x][y]=BLACK;if(blackWinAt(x,y))opp.push({x:x,y:y});board[x][y]=EMPTY;}
-    else{board[x][y]=WHITE;if(isWinRun(x,y,WHITE))opp.push({x:x,y:y});board[x][y]=EMPTY;}
+    if(mine.length<2){
+      if(p===BLACK){board[x][y]=BLACK;if(blackWinAt(x,y))mine.push({x:x,y:y});board[x][y]=EMPTY;}
+      else{board[x][y]=WHITE;if(isWinRun(x,y,WHITE))mine.push({x:x,y:y});board[x][y]=EMPTY;}
+    }
+    if(opp.length<2){
+      if(op===BLACK){board[x][y]=BLACK;if(blackWinAt(x,y))opp.push({x:x,y:y});board[x][y]=EMPTY;}
+      else{board[x][y]=WHITE;if(isWinRun(x,y,WHITE))opp.push({x:x,y:y});board[x][y]=EMPTY;}
+    }
     if(mine.length>=2&&opp.length>=2)break;
   }
   return {mine:mine,opp:opp};
