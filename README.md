@@ -171,6 +171,9 @@ node tests/renju-core-test.mjs
 # Search control regressions (abort/root/guard) — 6 cases, frozen clock, zero dependencies
 node tests/ai-search-regression.mjs
 
+# Optimisation equivalence regressions — naive reference impls, 14 boards × per-point diff
+node tests/ai-opt-regression.mjs
+
 # Full-game smoke through the real AI move path — zero dependencies
 node tests/ai-selfplay-smoke.mjs
 
