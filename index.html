@@ -391,7 +391,47 @@ function candTouch(x,y,d){
   for(let i=0;i<OFF1.length;i+=2){const nx=x+OFF1[i],ny=y+OFF1[i+1];if(inB(nx,ny))CAND1[nx*N+ny]+=d;}
   for(let i=0;i<OFF2.length;i+=2){const nx=x+OFF2[i],ny=y+OFF2[i+1];if(inB(nx,ny))CAND2[nx*N+ny]+=d;}
 }
-function setCell(x,y,p){board[x][y]=p;candTouch(x,y,p?1:-1);}
+/* ===== 方向势能表 WC[dir][color][idx] =====
+   WC 记录「从该点沿某方向 ±4 内的同色子数」——正是 winCount() 的定义。
+   它在落子/撤子的唯一入口 setCell() 里增量维护（每子 4 方向 × 8 点 = 32 处 +1），
+   把原本逐点扫盘的 winCount() 变成一次查表，并把两条安全下界变成 O(1)：
+     · 补一子成五（经过该点的连子恰五/≥五）⇒ 该方向 ±4 内必须已有 4 个同色子 ⇒ 先查 WC≥4；
+     · winCount≥3 是该方向可能存在「四」的必要条件（与原 fourMoves 下界筛同源）。
+   不变量（重要）：读表时 WC 必须与盘面一致。凡是「落一颗临时子后还要在别的点查表」
+   的地方（blackLegality / isFreeThreeDir / fourMoves 的试落），一律走 wcTemp/wcUntemp
+   （只同步 WC，必须成对）；只有「内部查表点恒为本格（winCount 不计中心格）」的纯估价/
+   形态枚举（evalPoint / ptsToFiveThrough / winPointsBoth / winPointsOne / fivePoint /
+   blackWinPoint）才用裸写格，连 WC 也不必更新。 */
+const WN=N*N;
+const WC=[new Int16Array(2*WN),new Int16Array(2*WN),new Int16Array(2*WN),new Int16Array(2*WN)];
+function wcTouch(x,y,c,d){       /* d=+1 落子 / -1 撤子；c 为该子颜色 */
+  const b=c===BLACK?0:WN,t0=WC[0],t1=WC[1],t2=WC[2],t3=WC[3];
+  for(let o=1;o<=4;o++){
+    let a=x+o;if(a<N)t0[b+a*N+y]+=d;
+    a=x-o;if(a>=0)t0[b+a*N+y]+=d;
+    let e=y+o;if(e<N)t1[b+x*N+e]+=d;
+    e=y-o;if(e>=0)t1[b+x*N+e]+=d;
+    a=x+o;e=y+o;if(a<N&&e<N)t2[b+a*N+e]+=d;
+    a=x-o;e=y-o;if(a>=0&&e>=0)t2[b+a*N+e]+=d;
+    a=x+o;e=y-o;if(a<N&&e>=0)t3[b+a*N+e]+=d;
+    a=x-o;e=y+o;if(a>=0&&e<N)t3[b+a*N+e]+=d;
+  }
+}
+function setCell(x,y,p){
+  const old=board[x][y];
+  if(old!==p){
+    if(old!==EMPTY)wcTouch(x,y,old,-1);
+    if(p!==EMPTY)wcTouch(x,y,p,1);
+  }
+  board[x][y]=p;
+  candTouch(x,y,p?1:-1);
+}
+/* 只维护 WC 的临时落子/撤子：给「落了临时子还要在别处查表」的试落路径用
+   （blackLegality / isFreeThreeDir / fourMoves）。比 pushStone 省掉候选计数与 Zobrist
+   的 32+ 邻域更新；这些窗口内不调用 candidates()、也不跑 negamax（无 TT 探测），
+   故 CAND/哈希保持原样即可，但窗口内必须成对使用 wcTemp / wcUntemp。 */
+function wcTemp(x,y,p){board[x][y]=p;wcTouch(x,y,p,1);}
+function wcUntemp(x,y,p){wcTouch(x,y,p,-1);board[x][y]=EMPTY;}
 function pushStone(x,y,p){
   const old=board[x][y];
   setCell(x,y,p);
@@ -404,11 +444,17 @@ function pushStone(x,y,p){
 function clearBoard(){          /* 原地清零：不重新赋值 board，避免任何已持有的引用失效 */
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)board[x][y]=EMPTY;
   CAND1.fill(0);CAND2.fill(0);
+  for(let i=0;i<4;i++)WC[i].fill(0);
 }
 /* 思考前与真实盘面对齐一次（读档/harness 等路径可能整体替换 board 数组） */
 function syncCand(){
   CAND1.fill(0);CAND2.fill(0);
-  for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)candTouch(x,y,1);
+  for(let i=0;i<4;i++)WC[i].fill(0);
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++){
+    const v=board[x][y];
+    if(v===EMPTY)continue;
+    candTouch(x,y,1);wcTouch(x,y,v,1);
+  }
 }
 
 /* 经过 (x,y) 沿 (dx,dy) 的连子数与两端开放数（要求 board[x][y]===p）。
@@ -424,6 +470,17 @@ function runInfo(x,y,dx,dy,p){
   if(inB(nx,ny)&&board[nx][ny]===EMPTY)o++;
   RUN[0]=c;RUN[1]=o;
   return RUN;
+}
+/* 只求两侧连子长度（不含中心）：LR[0]=负向连子数，LR[1]=正向连子数。
+   runInfo 的 o（两端是否开放）在这里用不上，而下面的「补点唯一性」变换需要 L/R 分列。
+   与 RUN 同样复用定长数组，调用方当场消费。 */
+const LR=[0,0];
+function lrInfo(x,y,dx,dy,p){
+  let a=0,b=0,nx,ny;
+  while(inB(nx=x+dx*(a+1),ny=y+dy*(a+1))&&board[nx][ny]===p)a++;   /* a: +方向 */
+  while(inB(nx=x-dx*(b+1),ny=y-dy*(b+1))&&board[nx][ny]===p)b++;   /* b: -方向 */
+  LR[0]=b;LR[1]=a;
+  return LR;
 }
 function dirScore(c,o,side){
   if(c===5)return 1000000;                       /* 五连（黑棋必须恰好五连） */
@@ -508,14 +565,22 @@ function linkedTo(x,y,dx,dy,o,p){
   return true;
 }
 /* 沿方向 (dx,dy) 统计：多少个空位补上 p 色子后能形成「经过 (x,y) 的取胜连子」
-   （黑棋要求恰好5连，白棋5连及以上） */
+   （黑棋要求恰好5连，白棋5连及以上）。
+   ===== 补点唯一性（本文件多处复用的关键变换）=====
+   原实现枚举 o=-4..4 的 8 个偏移，逐个做 linkedTo（中间格必须全为己方子）与空位检查。
+   但「中间全为己方子 + 该格为空」两条同时成立时偏移是唯一的：
+   设正向连子长 R、负向连子长 L（lrInfo），则正侧只有 o=R+1 可能成立
+   （o≤R 落在连子上非空；o≥R+2 的中途 o=R+1 格为空），负侧同理只有 o=-(L+1)。
+   故只需检查至多 2 个候选点，结果与原枚举逐位相同（还需 |o|≤4 与在盘内）。 */
 function ptsToFiveThrough(x,y,dx,dy,p){
   let cnt=0;
-  for(let o=-4;o<=4;o++){
-    if(o===0)continue;
+  const lr=lrInfo(x,y,dx,dy,p);
+  const L=lr[0],R=lr[1];        /* LR 是复用数组：循环内的嵌套调用会改写它 */
+  for(let s=0;s<2;s++){
+    const o=s?-(L+1):(R+1);
+    if(o<-4||o>4)continue;
     const nx=x+dx*o,ny=y+dy*o;
     if(!inB(nx,ny)||board[nx][ny]!==EMPTY)continue;
-    if(!linkedTo(x,y,dx,dy,o,p))continue;
     board[nx][ny]=p;
     const r=runInfo(x,y,dx,dy,p)[0];
     board[nx][ny]=EMPTY;
@@ -543,17 +608,20 @@ function blackExtensionLegal(qx,qy,depth){
   return true;
 }
 /* 该方向上是否存在「活三」：存在相连空点 q，补黑后形成以 (x,y) 参与的双头活四，
-   且该延伸点自身不是禁手 */
+   且该延伸点自身不是禁手。
+   候选空点同样由补点唯一性收窄到至多 2 个（正侧 R+1、负侧 -(L+1)），与全枚举等价。 */
 function isFreeThreeDir(x,y,dx,dy,depth){
-  for(let o=-4;o<=4;o++){
-    if(o===0)continue;
+  const lr=lrInfo(x,y,dx,dy,BLACK);
+  const L=lr[0],R=lr[1];        /* LR 是复用数组：循环内的嵌套调用会改写它 */
+  for(let s=0;s<2;s++){
+    const o=s?-(L+1):(R+1);
+    if(o<-4||o>4)continue;
     const nx=x+dx*o,ny=y+dy*o;
     if(!inB(nx,ny)||board[nx][ny]!==EMPTY)continue;
-    if(!linkedTo(x,y,dx,dy,o,BLACK))continue;
-    board[nx][ny]=BLACK;
+    wcTemp(nx,ny,BLACK);         /* 同 blackLegality：嵌套判定会在别处查 WC 表 */
     const open4=ptsToExactlyFiveThrough(x,y,dx,dy)>=2 /* 两个不同成五点＝活四 */
       &&blackExtensionLegal(nx,ny,depth);
-    board[nx][ny]=EMPTY;
+    wcUntemp(nx,ny,BLACK);
     if(open4)return true;
   }
   return false;
@@ -563,12 +631,18 @@ function isFreeThreeDir(x,y,dx,dy,depth){
    成「活三」= 补一子成双头四 ⇒ 至少还要 2 子。故它是这两个形态的下界筛：
    计数不足即可断定该方向既无四亦无三，判定结果与原穷举完全一致，只是便宜得多。 */
 function winCount(x,y,dx,dy,p){
-  let c=0;
-  for(let o=1;o<=4;o++){
-    if(inB(x+dx*o,y+dy*o)&&board[x+dx*o][y+dy*o]===p)c++;
-    if(inB(x-dx*o,y-dy*o)&&board[x-dx*o][y-dy*o]===p)c++;
-  }
-  return c;
+  /* 查 WC 表（setCell 增量维护）：同一语义，O(1)。方向先归一化到四个规范方向，
+     (±1,0)/(0,±1)/(±1,±1)/(±1,∓1) 都映射到同一条线，非规范方向不会被调用。 */
+  if(dx<0||(dx===0&&dy<0)){dx=-dx;dy=-dy;}
+  const t=dx===1?(dy===0?WC[0]:(dy===1?WC[2]:WC[3])):WC[1];
+  return t[(p===BLACK?0:WN)+x*N+y];
+}
+/* 「补一子成五」的必要条件下界：某方向 ±4 内已有 ≥4 个同色子（查 WC 表，O(1)）。
+   成五点必落在含该点的某个 5 格窗内，故 4 个己方子都在 ±4 内 ⇒ 为真必要条件。
+   用于取胜点扫描的剪枝：中盘绝大多数候选点四个方向都凑不出 4 子。 */
+function canFive(x,y,p){
+  const i=(p===BLACK?0:WN)+x*N+y;
+  return WC[0][i]>=4||WC[1][i]>=4||WC[2][i]>=4||WC[3][i]>=4;
 }
 /* 黑棋落子禁手判定。调用前需已将黑子临时放在 (x,y)。
    返回 'win'（合法五连）/ 'overline'（长连）/ '44'（四四）/ '33'（三三）/ 'ok' */
@@ -604,11 +678,13 @@ function blackMoveType(x,y,depth){
   }
   return 'ok';
 }
-/* 便捷封装：内部完成临时落子/撤子 */
+/* 便捷封装：内部完成临时落子/撤子。
+   注意不能用裸写格：禁手判定会经由 isFreeThreeDir→blackExtensionLegal 再往下问
+   winCount()，那些查询点不是本格，WC 表必须把这一颗临时子也算进去。 */
 function blackLegality(x,y){
-  board[x][y]=BLACK;
+  wcTemp(x,y,BLACK);
   const t=blackMoveType(x,y);
-  board[x][y]=EMPTY;
+  wcUntemp(x,y,BLACK);
   return t;
 }
 /* AI 落子不变量：只能返回空点；黑棋只能返回经禁手检测的合法着法 */
@@ -644,23 +720,31 @@ function winPointsBoth(p){
   for(const c of candidates(1)){
     const x=c[0],y=c[1];
     if(board[x][y]!==EMPTY)continue;
-    if(p===BLACK){
-      board[x][y]=BLACK;
-      if(blackWinAt(x,y))mine.push({x:x,y:y});
-      board[x][y]=EMPTY;
-    }else{
-      board[x][y]=WHITE;
-      if(isWinRun(x,y,WHITE))mine.push({x:x,y:y});
-      board[x][y]=EMPTY;
+    /* 成五下界筛（canFive）：不满足的点连「补一子成五」都不可能，直接免去试落与判定。
+       被筛掉的点原本也不会入选，故 mine/opp 的内容与顺序逐位不变。 */
+    const canP=canFive(x,y,p),canO=canFive(x,y,op);
+    if(!canP&&!canO)continue;
+    if(canP){
+      if(p===BLACK){
+        board[x][y]=BLACK;
+        if(blackWinAt(x,y))mine.push({x:x,y:y});
+        board[x][y]=EMPTY;
+      }else{
+        board[x][y]=WHITE;
+        if(isWinRun(x,y,WHITE))mine.push({x:x,y:y});
+        board[x][y]=EMPTY;
+      }
     }
-    if(op===BLACK){
-      board[x][y]=BLACK;
-      if(blackWinAt(x,y))opp.push({x:x,y:y});
-      board[x][y]=EMPTY;
-    }else{
-      board[x][y]=WHITE;
-      if(isWinRun(x,y,WHITE))opp.push({x:x,y:y});
-      board[x][y]=EMPTY;
+    if(canO){
+      if(op===BLACK){
+        board[x][y]=BLACK;
+        if(blackWinAt(x,y))opp.push({x:x,y:y});
+        board[x][y]=EMPTY;
+      }else{
+        board[x][y]=WHITE;
+        if(isWinRun(x,y,WHITE))opp.push({x:x,y:y});
+        board[x][y]=EMPTY;
+      }
     }
     if(mine.length>=2&&opp.length>=2)break;
   }
@@ -674,6 +758,7 @@ function winPointsOne(p){
   const out=[];
   for(const c of candidates(1)){
     if(board[c[0]][c[1]]!==EMPTY)continue;
+    if(!canFive(c[0],c[1],p))continue;      /* 成五下界筛，见 winPointsBoth */
     board[c[0]][c[1]]=p;
     const hit=p===BLACK?blackWinAt(c[0],c[1]):isWinRun(c[0],c[1],p);
     board[c[0]][c[1]]=EMPTY;
@@ -690,21 +775,26 @@ function fourMoves(p,cap){
   for(const c of cands){
     if(board[c[0]][c[1]]!==EMPTY)continue;
     /* 与 winCount 同一个下界筛子：兵力凑不出「补一子成五」的点不可能是冲四着法，
-       先排除还能顺手省掉黑方一次禁手判定。 */
-    let fourPot=false;
-    for(const d of DIRS){if(winCount(c[0],c[1],d[0],d[1],p)>=3){fourPot=true;break;}}
-    if(!fourPot)continue;
+       先排除还能顺手省掉黑方一次禁手判定。
+       这里改为按方向记录筛子结果：winCount≥3 是该方向「能成四」的必要条件，
+       不满足的方向连 ptsToFiveThrough 都不必调（原实现四种方向一律全调）。 */
+    let potD=0;
+    for(let i=0;i<4;i++){
+      if(winCount(c[0],c[1],DIRS[i][0],DIRS[i][1],p)>=3)potD|=1<<i;
+    }
+    if(!potD)continue;
     if(p===BLACK){
-      board[c[0]][c[1]]=BLACK;
+      wcTemp(c[0],c[1],BLACK);
       const t=blackMoveType(c[0],c[1]);
-      if(t!=='ok'){board[c[0]][c[1]]=EMPTY;continue;} /* 禁手与直接胜着（已由取胜点覆盖）跳过 */
-    }else board[c[0]][c[1]]=p;
+      if(t!=='ok'){wcUntemp(c[0],c[1],BLACK);continue;} /* 禁手与直接胜着（已由取胜点覆盖）跳过 */
+    }else wcTemp(c[0],c[1],p);
     let dirs=0,open=false;
-    for(const d of DIRS){
-      const n=ptsToFiveThrough(c[0],c[1],d[0],d[1],p);
+    for(let i=0;i<4;i++){
+      if(!(potD&(1<<i)))continue;
+      const n=ptsToFiveThrough(c[0],c[1],DIRS[i][0],DIRS[i][1],p);
       if(n>=1){dirs++;if(n>=2)open=true;}
     }
-    board[c[0]][c[1]]=EMPTY;
+    wcUntemp(c[0],c[1],p);
     if(dirs>=1)out.push({x:c[0],y:c[1],k:(dirs>1?2:0)+(open?1:0)});
   }
   out.sort((a,b)=>b.k-a.k||((a.x*16+a.y)-(b.x*16+b.y))); /* 同分按点位定序，保证可复现 */
@@ -798,6 +888,7 @@ function evalDiff(p){
 function fivePoint(p){
   const cands=candidates(1);
   for(const c of cands){
+    if(!canFive(c[0],c[1],p))continue;      /* 成五下界筛，见 winPointsBoth */
     board[c[0]][c[1]]=p;const f=isWinRun(c[0],c[1],p);board[c[0]][c[1]]=EMPTY;
     if(f)return {x:c[0],y:c[1]};
   }
@@ -807,6 +898,7 @@ function fivePoint(p){
 function blackWinPoint(){
   for(const c of candidates(1)){
     if(board[c[0]][c[1]]!==EMPTY)continue;
+    if(!canFive(c[0],c[1],BLACK))continue;  /* 成五下界筛，见 winPointsBoth */
     board[c[0]][c[1]]=BLACK;
     const f=blackWinAt(c[0],c[1]);
     board[c[0]][c[1]]=EMPTY;
@@ -857,6 +949,10 @@ function vctTimeUp(){
 }
 /* (x,y) 已落 p 子：沿 (dx,dy) 是否存在一手补子，使该线形成两个以上成五点（即活四） */
 function openThreeDir(x,y,dx,dy,p){
+  /* 这里不能用「补点唯一性」收窄：与 ptsToFiveThrough/isFreeThreeDir 不同，本函数
+     枚举的是 ±4 内**全部**空点（不要求与 (x,y) 的连子相接），因为把子补在远处同样算
+     一种延伸，而且补在相接处会改变 (x,y) 那条连子本身（活四补成五反而使成五点归零），
+     逐个枚举的结果无法用两个候选点概括。保持全枚举。 */
   for(let o=-4;o<=4;o++){
     if(o===0)continue;
     const nx=x+dx*o,ny=y+dy*o;
@@ -1025,8 +1121,12 @@ const AI_CFG={
 function negamax(depth,alpha,beta,p,lastX,lastY){
   if(lastX>=0&&isWinRun(lastX,lastY,3-p))return -9000000-depth*1000;
   if(searchAborted||Date.now()>searchDeadline){searchAborted=true;return evalDiff(p);}
-  /* 速胜检出：当前方有一步取胜点直接返回 */
-  if((p===WHITE?fivePoint(WHITE):blackWinPoint()))return 9000000+depth*1000;
+  /* 速胜检出：当前方有一步取胜点直接返回。
+     一次 winPointsBoth 同时得到双方杀点（winPointsBoth.mine 与 fivePoint/blackWinPoint
+     的判据、扫描顺序逐点一致），下面的强制应着又正好要看对手那半。
+     原实现分两次扫（己方五连点 + winPointsAll(对手)），同一轮射程计算做了两遍。 */
+  const wpb=winPointsBoth(p);
+  if(wpb.mine.length)return 9000000+depth*1000;
   /* 置换表探测 */
   const a0=alpha,k1=zh1^(p===WHITE?ZS1:0),k2=zh2^(p===WHITE?ZS1:0);
   const ti=(k1>>>0)&(TT_SIZE-1),e=TT[ti];
@@ -1043,7 +1143,7 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
   if(depth<=0)return qNode(p,alpha,beta,VCF_PLY);
   /* 强制应着：对方已有一步成五点时只能堵这一点；两个成五点则必败；堵点为黑方禁手亦必败 */
   let moves;
-  const threats=winPointsAll(3-p);
+  const threats=wpb.opp;
   if(threats.length>=2)return -9000000-depth*1000;
   if(threats.length===1){
     const b=threats[0];
