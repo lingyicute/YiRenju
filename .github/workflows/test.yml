@@ -21,6 +21,8 @@ jobs:
         run: node tests/ai-search-regression.mjs
       - name: Optimisation equivalence regressions (naive reference impls)
         run: node tests/ai-opt-regression.mjs
+      - name: AI decision safety regressions (frozen clock, zero deps)
+        run: node tests/ai-safety-regression.mjs
       - name: Full-game smoke (real aiChoose path)
         run: node tests/ai-selfplay-smoke.mjs
 
