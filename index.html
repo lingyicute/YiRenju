@@ -1093,6 +1093,11 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
     }
   }
   if(searchAborted)return best;   /* 被时间截断的半截结果不写表，否则会污染同代其它结点 */
+  /* 胜负分不入表：qNode 返回的胜负分为 ±(9000000+qd*10)，并不携带 negamax 的 depth*1000 约定；
+     ttIn/ttOut 按 depth 归一化会使其取回时漂移 ±1000 的整数倍（实测：同一局面复用表后白方被杀线
+     分值从 -9000080 变为 -8999090，导致根节点在多条必输着法间的排序错误）。
+     胜负分局面重搜代价很小，直接不缓存即可保证结果与表的内容无关。 */
+  if(Math.abs(best)>8900000)return best;
   if(!TT_DEPTH_PREF){
     TT[ti]={k1,k2,dn:ttDraft,d:depth,v:ttIn(best,depth),f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
   }else{
