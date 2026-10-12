@@ -702,17 +702,9 @@ function legalCandidatePoints(p,points){
   return legal;
 }
 /* ============ 战术搜索组件：取胜点集 / 冲四着法 / VCF静默扩展 ============ */
-/* 落子后是否恰好五连（出现长连即不算赢）。与 blackMoveType==='win' 等价，
-   但省掉四四/三三的全窗枚举——只问「能不能一手取胜」时并不需要禁手细分。 */
-function blackWinAt(x,y){
-  let five=false;
-  for(const d of DIRS){
-    const c=runInfo(x,y,d[0],d[1],BLACK)[0];
-    if(c>=6)return false;
-    if(c===5)five=true;
-  }
-  return five;
-}
+/* 与现有 blackMoveType / isWinRun 保持同一胜负语义：有恰五即胜，
+   即使另一方向同时长连；只有长连、没有恰五时不算胜。这里只用于 AI 取胜点扫描。 */
+function blackWinAt(x,y){return isWinRun(x,y,BLACK);}
 /* 一次候选扫描同时求出双方的一手取胜点：qNode 每个结点都要问两边，
    分开扫等于把整轮形态计算做两遍。调用方只需区分 0 / 1 / ≥2，故各集计到 2 个即停。 */
 function winPointsBoth(p){
@@ -720,9 +712,9 @@ function winPointsBoth(p){
   for(const c of candidates(1)){
     const x=c[0],y=c[1];
     if(board[x][y]!==EMPTY)continue;
-    /* 成五下界筛（canFive）：不满足的点连「补一子成五」都不可能，直接免去试落与判定。
-       被筛掉的点原本也不会入选，故 mine/opp 的内容与顺序逐位不变。 */
-    const canP=canFive(x,y,p),canO=canFive(x,y,op);
+    /* 成五下界筛排除不可能的点；每侧凑够两个胜点后停止该侧试落，
+       即使另一侧还没凑够，也不重复统计已有双杀的一侧。各侧只保留行序前两点。 */
+    const canP=mine.length<2&&canFive(x,y,p),canO=opp.length<2&&canFive(x,y,op);
     if(!canP&&!canO)continue;
     if(canP){
       if(p===BLACK){
@@ -803,18 +795,19 @@ function fourMoves(p,cap){
 /* VCF 静默扩展：深度耗尽后，沿「冲四→强制挡」的强制线继续搜，
    能看见并打出多步连续冲四的必杀/必防序列 */
 let qNodes=0;
-function qNode(p,alpha,beta,qd){
+function qNode(p,alpha,beta,qd,knownWins){
   qNodes++;
   /* 静默子树也受同一时限约束；不能等到第 1024 个结点才首次检查。 */
   if(searchAborted||Date.now()>searchDeadline)searchAborted=true;
   if(searchAborted)return evalDiff(p);
-  const w=winPointsBoth(p);
+  /* negamax 在同一盘面已扫描过时直接复用；递归子结点仍独立扫描。 */
+  const w=knownWins||winPointsBoth(p);
   if(w.mine.length)return 9000000+qd*10;             /* 轮到我走且有胜点 */
   if(w.opp.length>1)return -9000000-qd*10;           /* 对方双杀点，堵不住 */
   if(w.opp.length===1){                              /* 被迫单挡 */
-    if(qd<=0)return evalDiff(p);     /* 静态延伸上限：待挡不等于输棋，返回静态评估 */
     const b=w.opp[0];
     if(p===BLACK){const t=blackLegality(b.x,b.y);if(t!=='ok'&&t!=='win')return -9000000;} /* 无合法挡点 */
+    if(qd<=0)return evalDiff(p);     /* 有合法挡点才允许在静态延伸上限返回估值 */
     pushStone(b.x,b.y,p);                            /* 走 pushStone：本子树的 candidates() 必须看得见这手棋 */
     const v=-qNode(3-p,-beta,-alpha,qd-1);
     pushStone(b.x,b.y,EMPTY);
@@ -894,7 +887,7 @@ function fivePoint(p){
   }
   return null;
 }
-/* 黑棋合法的一步取胜点：恰好五连（长连即禁手，不在其列） */
+/* 黑棋合法的一步取胜点：至少一个方向恰五；与规则内核的五连优先语义一致。 */
 function blackWinPoint(){
   for(const c of candidates(1)){
     if(board[c[0]][c[1]]!==EMPTY)continue;
@@ -937,7 +930,7 @@ function orderedMoves(p,cap){
    防守点中选一个应对；防守方也可以用冲四反击（最多 VCT_CTR 次）。攻方须对每一种防守
    应对都能取胜，才算证明成功。
    近似说明：防守点取攻方该条线 ±4 格内的空点，不含「借禁手使开四非法」之类的线外防守，
-   因此结果只作为搜索启发（找胜着 / 找防守着），每手都会重新搜索，不作为绝对证明。
+   因此结果只作为根节点排序提示：不直接交付着法、不删除原候选，也不据此否决主搜索结果。
    超时一律按「未证明」处理，因此不会因超时而误报必胜或误判必败。 */
 const VCT_ENABLED=true;                      /* 总开关：false 则完全退回 v1 行为 */
 const VCT_DEPTH=5,VCT_TEST_DEPTH=3,VCT_CTR=1,VCT_FOUR_CAP=4,VCT_THREE_CAP=6,VCT_DEF_CAP=12,VCT_SHARE=0.15;
@@ -1087,7 +1080,7 @@ function vctFindWin(p){
   return null;
 }
 /* 根节点：若对方存在连续威胁，收集能破坏之的应着（最多 VCT_BREAK_CAP 个）；
-   无威胁或超时返回 null。注意：这些应着只是搜索的候选限制，最终仍由搜索择优。 */
+   无威胁或超时返回 null。注意：这些应着仅优先搜索，不能据此限制根候选集合。 */
 const VCT_BREAK_CAP=2;
 function vctDefend(p){
   const op=3-p;
@@ -1140,7 +1133,7 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
     }
     if(e.m)ttMove=e.m;            /* 深度不够时只借用它记录的最佳着法 */
   }
-  if(depth<=0)return qNode(p,alpha,beta,VCF_PLY);
+  if(depth<=0)return qNode(p,alpha,beta,VCF_PLY,wpb);
   /* 强制应着：对方已有一步成五点时只能堵这一点；两个成五点则必败；堵点为黑方禁手亦必败 */
   let moves;
   const threats=wpb.opp;
@@ -1209,14 +1202,21 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
   }
   return best;
 }
-/* 送杀闸门：评估点 mv 落成后，对手是否存在 GUARD_DEPTH 手内可证明的强制杀 */
+/* 送杀闸门只凭 VCF 强制线否决着法，不凭近似 VCT 的阳性结果。
+   GUARD_DEPTH 次攻防约为 2*GUARD_DEPTH 个 ply；冲四候选截宽只可能漏杀，
+   不会像截断 VCT 防守集合那样把未检查的反击当作无解。未检出不代表已经证明安全。 */
 function guardSafe(p,mv,ms){
+  const oldDeadline=searchDeadline,oldAborted=searchAborted,oldNodes=qNodes;
   pushStone(mv.x,mv.y,p);
-  vctDeadline=Date.now()+ms;vctAborted=false;
-  let lost=vctA(3-p,GUARD_DEPTH,VCT_CTR,null);
-  if(vctAborted)lost=false;                    /* 超时按未证明处理，宁放行不误杀 */
-  pushStone(mv.x,mv.y,EMPTY);
-  return !lost;
+  try{
+    if(isWinRun(mv.x,mv.y,p))return true;
+    searchDeadline=Date.now()+ms;searchAborted=false;
+    const score=qNode(3-p,-Infinity,Infinity,GUARD_DEPTH*2);
+    return searchAborted||Date.now()>searchDeadline||score<8900000;
+  }finally{
+    pushStone(mv.x,mv.y,EMPTY);
+    searchDeadline=oldDeadline;searchAborted=oldAborted;qNodes=oldNodes;
+  }
 }
 /* 在 root（当前最优次序）里找第一手无送杀嫌疑的着法；全灭或超时返回 null */
 function guardBest(p,root,deadline){
@@ -1234,6 +1234,8 @@ function guardBest(p,root,deadline){
 function stonesOnBoard(){let n=0;for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)n++;return n;}
 function aiChooseRaw(p){
   const op=3-p;
+  let vctWin=null;
+  vctBreakers=null;                          /* 提示只在本手有效 */
   const tStart=Date.now();                       /* 本手计时起点：VCT 与迭代加深共用同一时限 */
   const cands=candidates(2);
   if(!cands.length)return null;
@@ -1245,16 +1247,15 @@ function aiChooseRaw(p){
     const opWins=winPointsAll(op);
     if(opWins.length===1&&isLegalMoveAt(p,opWins[0].x,opWins[0].y))return opWins[0];
   }
-  /* 困难及专家：先做连续威胁搜索（VCT）。有必胜威胁则直接走；对方有连续威胁则找破局着。 */
+  /* 困难及专家：VCT 给出攻击/防守提示，统一交给主搜索验证，而非直接认定必胜。 */
   if(VCT_ENABLED&&(mode==='ai-hard'||mode==='ai-expert')){
     const vcfg=AI_CFG[mode];
     syncCand();
     vctDeadline=tStart+vcfg.t*VCT_SHARE;
     vctAborted=false;
-    vctBreakers=null;
     const vw=vctFindWin(p);
-    if(vw&&isLegalMoveAt(p,vw.x,vw.y))return vw;
-    if(!vctAborted){
+    if(!vctAborted&&vw&&isLegalMoveAt(p,vw.x,vw.y))vctWin=vw;
+    if(!vctWin&&!vctAborted){
       vctBreakers=vctDefend(p);
     }
     vctAborted=false;
@@ -1299,14 +1300,18 @@ function aiChooseRaw(p){
   ttDraft++;
   qNodes=0;
   let root=orderedMoves(p,cfg.w);
-  if(vctBreakers){                                /* VCT：对方有连续威胁时，只在破局着中择优 */
-    const keep=root.filter(m=>vctBreakers.some(b=>b.x===m.x&&b.y===m.y));
-    if(keep.length)root=keep;
-    else root=vctBreakers.filter(b=>isLegalMoveAt(p,b.x,b.y));
-    vctBreakers=null;
+  const staticBest=root[0];                    /* 首层超时时，不把未验证的提示当作最优 */
+  const hints=[...(vctWin?[vctWin]:[]),...(vctBreakers||[])];
+  if(hints.length){
+    const seen=new Set();
+    /* 合法提示前置、去重；静态候选一个不删。宽度外提示额外加入（至多两个）。 */
+    root=[...hints.filter(m=>isLegalMoveAt(p,m.x,m.y)),...root].filter(m=>{
+      const k=m.x*N+m.y;if(seen.has(k))return false;seen.add(k);return true;
+    });
   }
+  vctBreakers=null;
   if(!root.length)return null;
-  let best=root[0],bestV=-Infinity;
+  let best=staticBest||root[0],bestV=-Infinity;
   /* P1 开局多样性：≤8 子时根节点改用全窗口逐手精确打分，末层分值接近者入池随机——
      老版本的同分随机从未触发过（每层都有严格唯一最优），Expert 开局是一套固定谱。 */
   const OPENING=stonesOnBoard()<8;let openScores=null;
