@@ -174,6 +174,9 @@ node tests/ai-search-regression.mjs
 # Optimisation equivalence regressions — naive reference impls, 14 boards × per-point diff
 node tests/ai-opt-regression.mjs
 
+# AI decision safety regressions (win semantics / guard contract / VCT-as-hint)
+node tests/ai-safety-regression.mjs
+
 # Full-game smoke through the real AI move path — zero dependencies
 node tests/ai-selfplay-smoke.mjs
 
