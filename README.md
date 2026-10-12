@@ -168,6 +168,9 @@ The `tests/` directory holds plain Node.js scripts (ESM, no build step):
 # Rule engine & AI unit tests — 66 assertions, zero dependencies
 node tests/renju-core-test.mjs
 
+# Search control regressions (abort/root/guard) — 6 cases, frozen clock, zero dependencies
+node tests/ai-search-regression.mjs
+
 # Full-game smoke through the real AI move path — zero dependencies
 node tests/ai-selfplay-smoke.mjs
 
