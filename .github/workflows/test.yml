@@ -23,6 +23,8 @@ jobs:
         run: node tests/ai-opt-regression.mjs
       - name: AI decision safety regressions (frozen clock, zero deps)
         run: node tests/ai-safety-regression.mjs
+      - name: Independent AI rules and state regressions
+        run: node tests/ai-review-regression.mjs
       - name: Full-game smoke (real aiChoose path)
         run: node tests/ai-selfplay-smoke.mjs
 

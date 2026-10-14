@@ -374,6 +374,7 @@ const N=15, EMPTY=0, BLACK=1, WHITE=2;
 const DIRS=[[1,0],[0,1],[1,1],[1,-1]];
 let board=Array.from({length:N},()=>new Array(N).fill(EMPTY));
 let mode='ai-easy';
+let boardStones=0; /* 真实/搜索落子的占用数；临时形态试落不读取此计数 */
 
 const inB=(x,y)=>x>=0&&x<N&&y>=0&&y<N;
 
@@ -424,7 +425,8 @@ function setCell(x,y,p){
     if(p!==EMPTY)wcTouch(x,y,p,1);
   }
   board[x][y]=p;
-  candTouch(x,y,p?1:-1);
+  const occupiedDelta=Number(p!==EMPTY)-Number(old!==EMPTY);
+  if(occupiedDelta){candTouch(x,y,occupiedDelta);boardStones+=occupiedDelta;}
 }
 /* 只维护 WC 的临时落子/撤子：给「落了临时子还要在别处查表」的试落路径用
    （blackLegality / isFreeThreeDir / fourMoves）。比 pushStone 省掉候选计数与 Zobrist
@@ -442,18 +444,21 @@ function pushStone(x,y,p){
   if(old!==p){hashPlace(x,y,old);hashPlace(x,y,p);}
 }
 function clearBoard(){          /* 原地清零：不重新赋值 board，避免任何已持有的引用失效 */
+  zh1=0;zh2=0;
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)board[x][y]=EMPTY;
+  boardStones=0;
   CAND1.fill(0);CAND2.fill(0);
   for(let i=0;i<4;i++)WC[i].fill(0);
 }
 /* 思考前与真实盘面对齐一次（读档/harness 等路径可能整体替换 board 数组） */
 function syncCand(){
+  boardStones=0;
   CAND1.fill(0);CAND2.fill(0);
   for(let i=0;i<4;i++)WC[i].fill(0);
   for(let x=0;x<N;x++)for(let y=0;y<N;y++){
     const v=board[x][y];
     if(v===EMPTY)continue;
-    candTouch(x,y,1);wcTouch(x,y,v,1);
+    boardStones++;candTouch(x,y,1);wcTouch(x,y,v,1);
   }
 }
 
@@ -589,23 +594,18 @@ function ptsToFiveThrough(x,y,dx,dy,p){
   return cnt;
 }
 function ptsToExactlyFiveThrough(x,y,dx,dy){return ptsToFiveThrough(x,y,dx,dy,BLACK);}
-/* 延伸点 q 自身合法性：补黑后无长连 且 不同方向不同时形成两个四（活三要求延伸可行）。
-   P2 补全（RIF 递归条款）：延伸点自身若构成三三禁手，该「活三」不成立——
-   换成带深度保护的完整 blackMoveType 判定；depth>=1 不再向下递归，退化为快检。 */
+/* 四的数量不等于成五点数，也不等于方向数。
+   两个成五点：连续四是同一组四子，否则是同线两个不同的四（如 X.XXX.X）。
+   补点唯一性保证经过本子的成五点至多两个，故不必为热路径分配棋子集合。 */
+function fourCountDir(x,y,dx,dy){
+  const n=ptsToExactlyFiveThrough(x,y,dx,dy);
+  return n===2&&runInfo(x,y,dx,dy,BLACK)[0]===4?1:n;
+}
+/* RIF 3 / 9.3：三必须能延伸为直四，且不能同时成五、长连、四四或禁三三。
+   不可用固定递归层数代替规则：每层新增一颗黑子，空点严格减少，递归自然终止。
+   WC 由调用方同步；在整个递归返回前不能撤销祖先的试落子。 */
 function blackExtensionLegal(qx,qy,depth){
-  for(const d of DIRS){
-    if(runInfo(qx,qy,d[0],d[1],BLACK)[0]>=6)return false;
-  }
-  let fours=0;
-  for(const d of DIRS){
-    if(ptsToExactlyFiveThrough(qx,qy,d[0],d[1])>=1)fours++;
-    if(fours>=2)return false;
-  }
-  if((depth|0)<1){
-    const t=blackMoveType(qx,qy,1);
-    if(t!=='ok'&&t!=='win')return false;
-  }
-  return true;
+  return blackMoveType(qx,qy,(depth|0)+1)==='ok';
 }
 /* 该方向上是否存在「活三」：存在相连空点 q，补黑后形成以 (x,y) 参与的双头活四，
    且该延伸点自身不是禁手。
@@ -619,7 +619,8 @@ function isFreeThreeDir(x,y,dx,dy,depth){
     const nx=x+dx*o,ny=y+dy*o;
     if(!inB(nx,ny)||board[nx][ny]!==EMPTY)continue;
     wcTemp(nx,ny,BLACK);         /* 同 blackLegality：嵌套判定会在别处查 WC 表 */
-    const open4=ptsToExactlyFiveThrough(x,y,dx,dy)>=2 /* 两个不同成五点＝活四 */
+    const open4=runInfo(x,y,dx,dy,BLACK)[0]===4
+      &&ptsToExactlyFiveThrough(x,y,dx,dy)===2 /* 必须是直四，不是同线双四 */
       &&blackExtensionLegal(nx,ny,depth);
     wcUntemp(nx,ny,BLACK);
     if(open4)return true;
@@ -648,7 +649,7 @@ function canFive(x,y,p){
    返回 'win'（合法五连）/ 'overline'（长连）/ '44'（四四）/ '33'（三三）/ 'ok' */
 function blackMoveType(x,y,depth){
   depth=depth|0;
-  let overline=false,five=false,p4=0,p3=0;
+  let overline=false,five=false,p4=0,p3=0,sameLine44=false;
   const pot=[0,0,0,0];
   for(let i=0;i<4;i++){
     const dx=DIRS[i][0],dy=DIRS[i][1];
@@ -657,6 +658,7 @@ function blackMoveType(x,y,depth){
     else if(r===5)five=true;
     const w=winCount(x,y,dx,dy,BLACK);
     pot[i]=w;
+    if(w>=4)sameLine44=true; /* 同线双四的两组四子并集至少五子 */
     if(w>=3)p4++;
     if(w>=2)p3++;
   }
@@ -664,16 +666,21 @@ function blackMoveType(x,y,depth){
   if(overline)return 'overline';
   /* 本文件最大的热点：原版对每个候选点都要做全窗枚举（占单手可用时长的近一半），
      而绝大多数点根本没有可能在两个方向上同时成四或成三。 */
-  if(p4<2&&p3<2)return 'ok';
+  if(p4<2&&p3<2&&!sameLine44)return 'ok';
   let fours=0,threes=0;
+  let fourDirs=0;
+  /* 先查全部四，再查三；不仅避免漏掉同线四四，也免去已是四四时的递归。 */
   for(let i=0;i<4;i++){
-    const dx=DIRS[i][0],dy=DIRS[i][1];
-    if(pot[i]>=3&&ptsToExactlyFiveThrough(x,y,dx,dy)>=1){
-      fours++;
-      if(fours>=2)return '44';
-    }else if(pot[i]>=2&&isFreeThreeDir(x,y,dx,dy,depth)){ /* 同一方向是四即不再按三计 */
-      threes++;
-      if(threes>=2)return '33';
+    if(pot[i]<3)continue;
+    const n=fourCountDir(x,y,DIRS[i][0],DIRS[i][1]);
+    if(n)fourDirs|=1<<i;
+    fours+=n;
+    if(fours>=2)return '44';
+  }
+  if(p3<2)return 'ok';
+  for(let i=0;i<4;i++){
+    if(!(fourDirs&(1<<i))&&pot[i]>=2&&isFreeThreeDir(x,y,DIRS[i][0],DIRS[i][1],depth)){
+      if(++threes>=2)return '33';
     }
   }
   return 'ok';
@@ -801,6 +808,7 @@ function qNode(p,alpha,beta,qd,knownWins){
   if(searchAborted||Date.now()>searchDeadline)searchAborted=true;
   if(searchAborted)return evalDiff(p);
   /* negamax 在同一盘面已扫描过时直接复用；递归子结点仍独立扫描。 */
+  if(boardStones===N*N)return 0; /* 无胜线的满盘是和棋，不是静态优势 */
   const w=knownWins||winPointsBoth(p);
   if(w.mine.length)return 9000000+qd*10;             /* 轮到我走且有胜点 */
   if(w.opp.length>1)return -9000000-qd*10;           /* 对方双杀点，堵不住 */
@@ -940,22 +948,21 @@ function vctTimeUp(){
   if(!vctAborted&&Date.now()>vctDeadline)vctAborted=true;
   return vctAborted;
 }
-/* (x,y) 已落 p 子：沿 (dx,dy) 是否存在一手补子，使该线形成两个以上成五点（即活四） */
+/* (x,y) 已落 p 子：是否能合法延伸为包含本子与延伸子的直四，且不同时成五。 */
 function openThreeDir(x,y,dx,dy,p){
-  /* 这里不能用「补点唯一性」收窄：与 ptsToFiveThrough/isFreeThreeDir 不同，本函数
-     枚举的是 ±4 内**全部**空点（不要求与 (x,y) 的连子相接），因为把子补在远处同样算
-     一种延伸，而且补在相接处会改变 (x,y) 那条连子本身（活四补成五反而使成五点归零），
-     逐个枚举的结果无法用两个候选点概括。保持全枚举。 */
-  for(let o=-4;o<=4;o++){
-    if(o===0)continue;
+  if(p===BLACK)return isFreeThreeDir(x,y,dx,dy,0);
+  /* 真正的三只能补相邻连段的两端之一；补远处不能把本子并入新的直四。
+     白方无禁手递归，纯形态试落无需维护 CAND/WC/哈希。 */
+  const lr=lrInfo(x,y,dx,dy,p),L=lr[0],R=lr[1];
+  for(const o of [-(L+1),R+1]){
+    if(Math.abs(o)>4)continue;
     const nx=x+dx*o,ny=y+dy*o;
     if(!inB(nx,ny)||board[nx][ny]!==EMPTY)continue;
-    pushStone(nx,ny,p);
-    let ok=true;
-    if(p===BLACK){const t=blackMoveType(nx,ny);ok=(t==='ok'||t==='win');}
-    const fives=ok?ptsToFiveThrough(x,y,dx,dy,p):0;
-    pushStone(nx,ny,EMPTY);
-    if(fives>=2)return true;
+    board[nx][ny]=p;
+    const ok=runInfo(x,y,dx,dy,p)[0]===4
+      &&ptsToFiveThrough(x,y,dx,dy,p)===2&&!isWinRun(nx,ny,p);
+    board[nx][ny]=EMPTY;
+    if(ok)return true;
   }
   return false;
 }
@@ -1113,6 +1120,7 @@ const AI_CFG={
 };
 function negamax(depth,alpha,beta,p,lastX,lastY){
   if(lastX>=0&&isWinRun(lastX,lastY,3-p))return -9000000-depth*1000;
+  if(boardStones===N*N)return 0;
   if(searchAborted||Date.now()>searchDeadline){searchAborted=true;return evalDiff(p);}
   /* 速胜检出：当前方有一步取胜点直接返回。
      一次 winPointsBoth 同时得到双方杀点（winPointsBoth.mine 与 fivePoint/blackWinPoint
@@ -1231,7 +1239,7 @@ function guardBest(p,root,deadline){
   return null;
 }
 /* AI 选择着点（内部实现）。p 为 AI 执子（黑方着法自动经过禁手过滤） */
-function stonesOnBoard(){let n=0;for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)n++;return n;}
+function stonesOnBoard(){return boardStones;}
 function aiChooseRaw(p){
   const op=3-p;
   let vctWin=null;

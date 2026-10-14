@@ -177,6 +177,12 @@ node tests/ai-opt-regression.mjs
 # AI decision safety regressions (win semantics / guard contract / VCT-as-hint)
 node tests/ai-safety-regression.mjs
 
+# Independent RIF rule oracle regressions (26,244-line enum + 10,000 seeded boards)
+node tests/ai-review-regression.mjs
+
+# Optional: old-vs-new search diagnostic (fixed depth, median of 5; not an Elo benchmark)
+node tests/ai-review-bench.mjs old.html index.html
+
 # Full-game smoke through the real AI move path — zero dependencies
 node tests/ai-selfplay-smoke.mjs
 

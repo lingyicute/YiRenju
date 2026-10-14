@@ -5,6 +5,8 @@
      ③ 成五下界筛 canFive：winPointsOne/winPointsBoth/fivePoint/blackWinPoint 跳过不可能成五的点；
      ④ fourMoves 只对 winCount≥3 的方向做补点判定。
    本测试把 ①②③④ 的朴素版本原地重写一遍，在随机局面上逐点比对；
+   规则修正后参考枚举也要求「直四、延伸参与成形、延伸不成五、完整递归」，
+   并同步试落 WC；规则本身另由 ai-review-regression 的独立窗口 oracle 核查。
    另校验 225 格 × 4 方向 × 2 色的 winCount 与盘面重算值一致（表不漂移）。
    运行: node tests/ai-opt-regression.mjs（在仓库根目录下）*/
 import {readFileSync,existsSync} from 'fs';
@@ -13,7 +15,7 @@ if(!existsSync(pageUrl)){console.error('找不到 index.html（请在仓库根�
 const html=readFileSync(pageUrl,'utf8');
 const src=html.slice(html.indexOf('/*CORE_START*/'),html.indexOf('/*CORE_END*/'));
 const api=new Function(src+`
-/* ================= 朴素参考实现（优化前原版逐行等价） ================= */
+/* ================= 朴素枚举参考（规则以直四/完整递归为准） ================= */
 function nWinCount(x,y,dx,dy,p){
   let c=0;
   for(let o=1;o<=4;o++){
@@ -42,9 +44,10 @@ function nIsFreeThreeDir(x,y,dx,dy,depth){
     const nx=x+dx*o,ny=y+dy*o;
     if(!inB(nx,ny)||board[nx][ny]!==EMPTY)continue;
     if(!linkedTo(x,y,dx,dy,o,BLACK))continue;
-    board[nx][ny]=BLACK;
-    const open4=nPtsToFive(x,y,dx,dy,BLACK)>=2&&blackExtensionLegal(nx,ny,depth);
-    board[nx][ny]=EMPTY;
+    pushStone(nx,ny,BLACK);
+    const open4=runInfo(x,y,dx,dy,BLACK)[0]===4
+      &&nPtsToFive(x,y,dx,dy,BLACK)===2&&blackExtensionLegal(nx,ny,depth);
+    pushStone(nx,ny,EMPTY);
     if(open4)return true;
   }
   return false;
@@ -54,9 +57,10 @@ function nOpenThreeDir(x,y,dx,dy,p){
     if(o===0)continue;
     const nx=x+dx*o,ny=y+dy*o;
     if(!inB(nx,ny)||board[nx][ny]!==EMPTY)continue;
+    if(!linkedTo(x,y,dx,dy,o,p))continue;
     pushStone(nx,ny,p);
-    let ok=true;
-    if(p===BLACK){const t=blackMoveType(nx,ny);ok=(t==='ok'||t==='win');}
+    let ok=!isWinRun(nx,ny,p)&&runInfo(x,y,dx,dy,p)[0]===4;
+    if(ok&&p===BLACK)ok=blackExtensionLegal(nx,ny,0);
     const fives=ok?nPtsToFive(x,y,dx,dy,p):0;
     pushStone(nx,ny,EMPTY);
     if(fives>=2)return true;
@@ -100,16 +104,16 @@ function nFourMoves(p,cap){
     for(const d of DIRS){if(nWinCount(c[0],c[1],d[0],d[1],p)>=3){fourPot=true;break;}}
     if(!fourPot)continue;
     if(p===BLACK){
-      board[c[0]][c[1]]=BLACK;
+      pushStone(c[0],c[1],BLACK);
       const t=blackMoveType(c[0],c[1]);
-      if(t!=='ok'){board[c[0]][c[1]]=EMPTY;continue;}
-    }else board[c[0]][c[1]]=p;
+      if(t!=='ok'){pushStone(c[0],c[1],EMPTY);continue;}
+    }else pushStone(c[0],c[1],p);
     let dirs=0,open=false;
     for(const d of DIRS){
       const n=nPtsToFive(c[0],c[1],d[0],d[1],p);
       if(n>=1){dirs++;if(n>=2)open=true;}
     }
-    board[c[0]][c[1]]=EMPTY;
+    pushStone(c[0],c[1],EMPTY);
     if(dirs>=1)out.push({x:c[0],y:c[1],k:(dirs>1?2:0)+(open?1:0)});
   }
   out.sort((a,b)=>b.k-a.k||((a.x*16+a.y)-(b.x*16+b.y)));
@@ -195,10 +199,12 @@ for(let g=0;g<14;g++){
       api.setCell(x,y,EMPTY);
       checked++;
       if(p===BLACK){
+        api.setCell(x,y,BLACK); /* 活三接口要求中心已有黑子 */
         for(const d of DIRK){
           const g=api.isFreeThreeDir(x,y,d[0],d[1],0),w=api.n.nIsFreeThreeDir(x,y,d[0],d[1],0);
           if(g!==w){badF3++;if(badF3<3)console.log('   f3',x,y,d,g,w);}
         }
+        api.setCell(x,y,EMPTY);
       }
     }
   }
