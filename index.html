@@ -1631,6 +1631,19 @@ function announceMove(x,y,p){
                         :`${who} ${at}，棋盘已满，平局，共 ${history.length} 手。`);
   else announce(`${who} ${at}，第 ${history.length} 手，轮到${sideName(turn)}。`);
 }
+/* 光标播报：canvas 无棋盘语义，读屏用户靠这条消息知道「我在哪、这里能不能下」 */
+function announceCursor(){
+  if(over)return;
+  const at=coordLabel(cursor.x,cursor.y),occ=board[cursor.x][cursor.y];
+  if(mode!=='pvp'&&turn!==humanP){announce(`光标 ${at}。`);return;}
+  if(occ!==EMPTY){announce(`光标 ${at}，已有${sideName(occ)}。`);return;}
+  let note='';
+  if(turn===BLACK){
+    const t=blackLegality(cursor.x,cursor.y);
+    if(t!=='ok'&&t!=='win')note='，禁手：'+FOUL_LABEL[t]+'，不可落子';
+  }
+  announce(`光标 ${at}${note}。`);
+}
 function dotHTML(p){return `<span class="stone-dot ${p===BLACK?'black':'white'}"></span>`;}
 function updateHUD(){
   const mv=$('moveLabel'),tv=$('turnValue');
@@ -1988,6 +2001,9 @@ function toast(msg){
   const t=$('toast');
   t.textContent=msg;t.classList.add('show');
   clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1800);
+  /* 视觉 toast 对读屏用户不可见，统一转成实时状态播报；
+     禁手在 tryHumanPlace 里已有带坐标的详细版本，这里不重复。 */
+  if(!msg.startsWith('禁手'))announce(msg);
 }
 
 /* ================= 菜单 ================= */
@@ -2152,6 +2168,7 @@ document.addEventListener('keydown',e=>{
   if(mv){
     cursor.x=(cursor.x+mv[0]+N)%N;cursor.y=(cursor.y+mv[1]+N)%N;
     kbdCursor=true;hover=null;scheduleDraw();
+    announceCursor();
     return;
   }
   if(k==='Enter'||k===' '){
