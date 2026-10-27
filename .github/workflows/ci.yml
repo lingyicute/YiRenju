@@ -44,38 +44,15 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      # 固定版本 + 缓存，避免每次 push 都碰运气从 CDN 拉 100+ MB 浏览器
-      PLAYWRIGHT_VERSION: 1.64.1
-      PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '60000'
+    # 官方镜像预装 chromium-headless-shell 与全部系统依赖（含中文字体），
+    # 彻底避开 apt-get 镜像抖动与浏览器 CDN 下载，e2e 无需联网准备环境。
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Cache Playwright headless shell
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-headless-shell-${{ env.PLAYWRIGHT_VERSION }}
-      - name: Install Playwright chromium (headless shell)
-        timeout-minutes: 6
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            echo "::group::Playwright install attempt $attempt"
-            if timeout 150 npm i --no-save --no-audit --no-fund \
-                playwright-core@"$PLAYWRIGHT_VERSION" @playwright/browser-chromium@"$PLAYWRIGHT_VERSION"; then
-              echo "::endgroup::"
-              break
-            fi
-            echo "::endgroup::"
-            if [ "$attempt" = 3 ]; then echo "Playwright 安装三次均失败"; exit 1; fi
-            rm -rf node_modules/@playwright node_modules/playwright-core
-            sleep 5
-          done
-          timeout 150 npx playwright-core install --with-deps chromium-headless-shell
+      - name: Install playwright-core (browser already in the image)
+        timeout-minutes: 3
+        run: npm i --no-save --no-audit --no-fund playwright-core@1.64.1
       - name: Serve and run browser e2e
         run: |
           python3 -m http.server 8600 &
