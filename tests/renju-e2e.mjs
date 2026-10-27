@@ -150,6 +150,7 @@ await clickCell(8,4);
 await page.waitForTimeout(1000);
 const dt=await dlgText();
 ok('白棋六连胜对话框',dt.includes('白棋获胜'),dt.slice(0,40));
+ok('长连胜播报含「长连」',((await page.$eval('#a11yStatus',e=>e.textContent))||'').includes('连成五子或长连'));
 ok('winCells=6',await page.evaluate(()=>winCells&&winCells.length===6));
 
 /* 5. 人机：简单 AI 应手正常 */

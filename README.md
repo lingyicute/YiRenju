@@ -73,7 +73,7 @@ It is a **single, self-contained HTML file** with the markup, styles, and game l
   - Hover to preview a stone on desktop. Tap to place a stone on mobile; swiping still scrolls the page.
   - The board scales to fit your screen. The keyboard cursor works with arrow keys or WASD.
 - **♿ Screen-Reader Status**
-  - Because the board is a single canvas, a visually hidden `aria-live` region announces every move with its coordinate (`A–O` × `1–15`) and move number, plus turn changes, forbidden-move refusals, undo and the final result.
+  - Because the board is a single canvas, a visually hidden `aria-live` region announces every move with its coordinate (`A–P` (skipping `I`) × `1–15`) and move number, plus turn changes, forbidden-move refusals, undo and the final result.
 
 - **🔊 Stone Sounds and Haptics**
   - A crisp Web Audio click on every move — black and white stones sound different — plus a little arpeggio on your wins. Toggle it from the menu (☰).
@@ -154,7 +154,7 @@ The whole game lives in one file. Edit `index.html`, save it, and reload the pag
 
 ### Embedded Font
 
-The display font (Nebulove) ships inline as a base64 subset covering only the glyphs the UI actually renders (~52 KB, 425 glyphs), so the page never downloads a font. If you change any UI text, regenerate the subset or new characters will fall back to system fonts:
+The display font (Nebulove) ships inline as a base64 subset covering only the glyphs the UI actually renders (~52 KB, 424 glyphs; one emoji falls back to the system font), so the page never downloads a font. If you change any UI text, regenerate the subset or new characters will fall back to system fonts:
 
 ```bash
 pip install fonttools brotli
@@ -203,7 +203,7 @@ node tests/ai-selfplay-smoke.mjs
 # (report only, ~6–7 min at GAMES=1; bump samples with GAMES=3)
 node tests/ai-tournament.mjs
 
-# Browser end-to-end UI tests — 46 assertions (one-time setup required)
+# Browser end-to-end UI tests — 47 assertions (one-time setup required)
 python3 -m http.server 8600     # serve this directory
 npm i playwright-core @playwright/browser-chromium
 npx playwright-core install chromium-headless-shell

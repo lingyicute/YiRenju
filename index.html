@@ -1623,7 +1623,7 @@ function announce(msg){
 }
 function announceMove(x,y,p){
   const who=sideName(p),at=coordLabel(x,y);
-  if(over)announce(winner?`${who} ${at} 连成五子，${who}获胜，共 ${history.length} 手。`
+  if(over)announce(winner?`${who} ${at} 连成五子或长连，${who}获胜，共 ${history.length} 手。`
                         :`${who} ${at}，棋盘已满，平局，共 ${history.length} 手。`);
   else announce(`${who} ${at}，第 ${history.length} 手，轮到${sideName(turn)}。`);
 }
