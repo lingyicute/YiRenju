@@ -210,6 +210,8 @@ npx playwright-core install chromium-headless-shell
 node tests/renju-e2e.mjs
 ```
 
+In CI this job runs inside `mcr.microsoft.com/playwright:v1.64.1-noble`, where the headless shell and all system fonts are preinstalled — no `apt-get` or browser download at run time. The e2e script honours `PLAYWRIGHT_BROWSERS_PATH` (used by that image) as well as the local `~/.cache/ms-playwright` cache.
+
 The unit and smoke suites assert on Renju rules, forbidden moves, and every AI search layer; the e2e suite additionally checks DOM behavior (foul markers, dialogs, records, aria-live announcements). GitHub Actions runs every suite on push and pull request, with a separate Playwright job.
 
 <br>

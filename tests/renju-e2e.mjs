@@ -9,15 +9,20 @@ const pageName='index.html';
 if(!existsSync(new URL('../'+pageName,import.meta.url))){console.error('找不到 index.html（请在仓库根目录下运行）');process.exit(2);}
 /* 自动发现本机已安装的无头浏览器；找不到则交给 playwright 默认解析 */
 function findExe(){
-  const dir=process.env.HOME+'/.cache/ms-playwright';
-  try{
-    for(const d of readdirSync(dir)){
-      if(d.startsWith('chromium_headless_shell-')){
-        const p=dir+'/'+d+'/chrome-headless-shell-linux64/chrome-headless-shell';
-        if(existsSync(p))return p;
+  /* 官方 Playwright 容器把浏览器预装在 /ms-playwright，并通过
+     PLAYWRIGHT_BROWSERS_PATH 暴露；本地开发则缓存在 ~/.cache/ms-playwright。 */
+  const dirs=[process.env.PLAYWRIGHT_BROWSERS_PATH,
+              process.env.HOME+'/.cache/ms-playwright'].filter(Boolean);
+  for(const dir of dirs){
+    try{
+      for(const d of readdirSync(dir)){
+        if(d.startsWith('chromium_headless_shell-')){
+          const p=dir+'/'+d+'/chrome-headless-shell-linux64/chrome-headless-shell';
+          if(existsSync(p))return p;
+        }
       }
-    }
-  }catch(e){}
+    }catch(e){}
+  }
   return null;
 }
 const exe=findExe();
