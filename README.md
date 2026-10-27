@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-174%20KiB-blue" alt="Self-contained HTML, approximately 174 KiB"></a>
+  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-178%20KiB-blue" alt="Self-contained HTML, approximately 178 KiB"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Runtime%20Setup-None-brightgreen" alt="No runtime setup"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Network%20Requests-Zero-brightgreen" alt="Zero network requests"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/github/stars/lingyicute/YiRenju?style=flat&color=yellow" alt="GitHub Stars"></a>
@@ -154,22 +154,25 @@ The whole game lives in one file. Edit `index.html`, save it, and reload the pag
 
 ### Embedded Font
 
-The display font (Nebulove) ships inline as a base64 subset covering only the glyphs the UI actually renders (~52 KB, 424 glyphs; one emoji falls back to the system font), so the page never downloads a font. If you change any UI text, regenerate the subset or new characters will fall back to system fonts:
+The display font (Nebulove) ships inline as a base64 subset covering only the glyphs the UI actually renders (~52 KB, 429 glyphs; one emoji falls back to the system font), so the page never downloads a font. If you change any UI text, regenerate the subset or new characters will fall back to system fonts:
 
 ```bash
 pip install fonttools brotli
 python3 scripts/subset_font.py          # rewrites the @font-face block in index.html
-python3 scripts/subset_font.py --check  # report the subset size; writes nothing at all
+python3 scripts/subset_font.py --check  # report the glyph/subset size; changes no repo file
+                                        # (the full font is cached in /tmp and reused)
 ```
 
 ### Testing
 
-The `tests/` directory holds plain Node.js scripts (ESM, no build step). Run everything the CI runs with:
+The `tests/` directory holds plain Node.js scripts (ESM, no build step). One command runs the same suites as the CI `core-and-smoke` job:
 
 ```bash
 npm test                 # offline contract + all unit/regression suites + full-game smoke
-SMOKE_MS=250 npm test    # same, with a shortened per-move AI budget (~20 s instead of ~4 min)
+SMOKE_MS=250 npm test    # same, with a shortened per-move AI budget (~20–35 s instead of ~4 min)
 ```
+
+The browser suite is a separate CI job and is not part of `npm test` — run `node tests/renju-e2e.mjs` yourself (see below).
 
 Individual suites:
 
@@ -177,7 +180,7 @@ Individual suites:
 # Offline / self-bootstrap contract — zero dependencies
 node tests/offline-contract.mjs
 
-# Rule engine & AI unit tests — 66 assertions, zero dependencies
+# Rule engine & AI unit tests — 69 assertions, zero dependencies
 node tests/renju-core-test.mjs
 
 # Search control regressions (abort/root/guard) — 6 cases, frozen clock, zero dependencies
@@ -212,7 +215,7 @@ node tests/renju-e2e.mjs
 
 In CI this job runs inside `mcr.microsoft.com/playwright:v1.64.1-noble`, where the headless shell and all system fonts are preinstalled — no `apt-get` or browser download at run time. The e2e script honours `PLAYWRIGHT_BROWSERS_PATH` (used by that image) as well as the local `~/.cache/ms-playwright` cache.
 
-The unit and smoke suites assert on Renju rules, forbidden moves, and every AI search layer; the e2e suite additionally checks DOM behavior (foul markers, dialogs, records, aria-live announcements). GitHub Actions runs every suite on push and pull request, with a separate Playwright job.
+The unit and smoke suites assert on Renju rules, forbidden moves, and every AI search layer; the e2e suite additionally checks DOM behavior (foul markers, dialogs, records, aria-live announcements, cursor announcements). On every push and pull request, GitHub Actions runs the eight `core-and-smoke` suites plus the Playwright browser suite in a second job. The two diagnostic scripts — `ai-tournament.mjs` (strength benchmark, minutes long) and `ai-review-bench.mjs` (old-vs-new search comparison) — are report-only and are **not** part of CI.
 
 <br>
 
