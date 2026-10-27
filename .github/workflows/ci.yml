@@ -23,29 +23,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Offline & self-bootstrap contract
-        run: node tests/offline-contract.mjs
-      - name: Rule engine & AI unit tests
-        run: node tests/renju-core-test.mjs
-      - name: TT mate-score regression
-        run: node tests/tt-mate-regression-test.mjs
-      - name: Search control regressions (frozen clock, zero deps)
-        run: node tests/ai-search-regression.mjs
-      - name: Optimisation equivalence regressions (naive reference impls)
-        run: node tests/ai-opt-regression.mjs
-      - name: AI decision safety regressions (frozen clock, zero deps)
-        run: node tests/ai-safety-regression.mjs
-      - name: Independent AI rules and state regressions
-        run: node tests/ai-review-regression.mjs
-      - name: Full-game smoke (real aiChoose path, shortened budget)
-        run: node tests/ai-selfplay-smoke.mjs
+      # package.json 的 test 脚本是唯一事实来源：契约检查 + 全部单元/回归套件 +
+      # 全盘烟测（SMOKE_MS 只压每手预算，仍走完整 aiChoose 路径）。
+      # 新增套件只需改 package.json，不会再出现「CI 漏跑」。
+      - name: Offline contract + unit/regression/smoke suites
+        run: npm test
         env:
           SMOKE_MS: 250
 
   e2e:
     runs-on: ubuntu-latest
     # 官方镜像预装 chromium-headless-shell 与全部系统依赖（含中文字体），
-    # 彻底避开 apt-get 镜像抖动与浏览器 CDN 下载，e2e 无需联网准备环境。
+    # 彻底避开 apt-get 镜像抖动与浏览器 CDN 下载，e2e 无需在线准备浏览器。
+    # 注意：本 job 不使用 setup-node，实际运行的是镜像自带的 Node 24；
+    #       核心作业用的是 Node 20。两处若要统一，请同时调整。
+    # ⚠️ 下面 container 的镜像 tag 与 playwright-core 版本必须同步升级：
+    #    版本不一致会造成浏览器目录/协议错配（症状是 launch 报奇怪的错）。
     container: mcr.microsoft.com/playwright:v1.64.1-noble
     timeout-minutes: 10
     steps:
@@ -56,5 +49,17 @@ jobs:
       - name: Serve and run browser e2e
         run: |
           python3 -m http.server 8600 &
-          sleep 1
+          # 等静态服务真正就绪再跑用例，避免固定 sleep 在冷启动/高负载下不够
+          for i in $(seq 1 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:8600/index.html && break
+            sleep 1
+          done
           node tests/renju-e2e.mjs
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-screenshots
+          path: /tmp/renju-*.png
+          if-no-files-found: ignore
+          retention-days: 7
