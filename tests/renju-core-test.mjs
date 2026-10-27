@@ -299,6 +299,18 @@ ck('aiChoose(expert) 不走杀',(()=>{
   }
   ck('winPointsOne 与 winPointsBoth.mine 前两名一致（4 局面×双色）',okAll,true);
 }
+/* (an) blackLegality 必须只对空点判定：对已占点调用不得改动棋盘与 Zobrist 哈希。
+   blackLegality 内部 wcTemp 会临时落子、wcUntemp 之后把该点写成 EMPTY，
+   旧实现对已占点调用会直接抹掉那颗棋子（a11y 光标播报曾踩到这条路径）。 */
+blank();put([[7,7]],BLACK);
+api.zobristInit();api.hashFromBoard();
+{
+  const sig=()=>{const b=api.getBoard();let s='';for(let x=0;x<N;x++)for(let y=0;y<N;y++)s+=b[x][y];return s;};
+  const b0=sig(),h0=api.getHash().join(',');
+  eq('blackLegality(已占点) 仍返回 ok',api.blackLegality(7,7),'ok');
+  eq('blackLegality(已占点) 不改盘面',sig(),b0);
+  eq('blackLegality(已占点) 不改哈希',api.getHash().join(','),h0);
+}
 /* (am) Zobrist 撤销对合：试落再撤，哈希须回到原值（回归：撤黑子曾掺白键噪声致 TT 失效） */
 blank();put([[7,7]],BLACK);
 api.zobristInit();api.hashFromBoard();

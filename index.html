@@ -695,6 +695,10 @@ function blackMoveType(x,y,depth){
    注意不能用裸写格：禁手判定会经由 isFreeThreeDir→blackExtensionLegal 再往下问
    winCount()，那些查询点不是本格，WC 表必须把这一颗临时子也算进去。 */
 function blackLegality(x,y){
+  /* 只对空点判定。wcTemp 会真的把这一颗临时子写进 board，wcUntemp 之后又把该点
+     写成 EMPTY——若对已占点调用，原有棋子会被抹掉，且 Zobrist 哈希不会同步回退，
+     哈希与盘面从此不一致。这里显式拒绝非空点（返回值与旧行为一致：仍为 'ok'）。 */
+  if(!inB(x,y)||board[x][y]!==EMPTY)return 'ok';
   wcTemp(x,y,BLACK);
   const t=blackMoveType(x,y);
   wcUntemp(x,y,BLACK);
