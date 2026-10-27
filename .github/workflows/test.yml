@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   core-and-smoke:
@@ -13,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Offline & self-bootstrap contract
+        run: node tests/offline-contract.mjs
       - name: Rule engine & AI unit tests
         run: node tests/renju-core-test.mjs
       - name: TT mate-score regression
@@ -25,8 +31,10 @@ jobs:
         run: node tests/ai-safety-regression.mjs
       - name: Independent AI rules and state regressions
         run: node tests/ai-review-regression.mjs
-      - name: Full-game smoke (real aiChoose path)
+      - name: Full-game smoke (real aiChoose path, shortened budget)
         run: node tests/ai-selfplay-smoke.mjs
+        env:
+          SMOKE_MS: 250
 
   e2e:
     runs-on: ubuntu-latest
