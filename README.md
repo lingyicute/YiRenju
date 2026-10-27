@@ -73,7 +73,7 @@ It is a **single, self-contained HTML file** with the markup, styles, and game l
   - Hover to preview a stone on desktop. Tap to place a stone on mobile; swiping still scrolls the page.
   - The board scales to fit your screen. The keyboard cursor works with arrow keys or WASD.
 - **♿ Screen-Reader Status**
-  - Because the board is a single canvas, a visually hidden `aria-live` region announces every move with its coordinate (`A–P` (skipping `I`) × `1–15`) and move number, plus turn changes, forbidden-move refusals, undo and the final result.
+  - Because the board is a single canvas, a visually hidden `aria-live` region announces the keyboard cursor (coordinate, whether the point is taken, and whether Black would be forbidden there), every move with its coordinate (`A–P`, skipping `I`; rows numbered `1–15` from the **bottom**) and move number, plus turn changes, forbidden-move refusals, undo, the restored-game state and the final result.
 
 - **🔊 Stone Sounds and Haptics**
   - A crisp Web Audio click on every move — black and white stones sound different — plus a little arpeggio on your wins. Toggle it from the menu (☰).
