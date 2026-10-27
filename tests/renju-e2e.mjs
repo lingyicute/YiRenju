@@ -103,6 +103,24 @@ await page.evaluate(()=>{history.length=0;localStorage.clear();}); /* 先断回�
 await page.reload();await page.waitForTimeout(250);
 await page.evaluate(()=>{setMode('ai-easy');newGame();});
 
+/* 1.5 无障碍状态播报（canvas 无原生语义，靠 aria-live 区域逐手播报） */
+ok('存在 role=status 的 aria-live 区域',await page.evaluate(()=>{
+  const e=document.getElementById('a11yStatus');
+  return !!e&&e.getAttribute('role')==='status'&&e.getAttribute('aria-live')==='polite'&&e.classList.contains('sr-only');
+}));
+ok('canvas 有 aria-describedby',await page.evaluate(()=>{
+  const c=document.getElementById('board'),d=document.getElementById(c.getAttribute('aria-describedby'));
+  return !!d&&d.textContent.includes('禁手');
+}));
+await page.evaluate(()=>{setMode('pvp');newGame();});
+await page.waitForTimeout(100);
+ok('新局有语音播报',((await page.$eval('#a11yStatus',e=>e.textContent))||'').includes('新的一局'));
+await clickCell(7,7);await page.waitForTimeout(120);
+const ann=await page.$eval('#a11yStatus',e=>e.textContent);
+ok('落子播报含坐标 H8 与手数',ann.includes('H8')&&ann.includes('第 1 手'),ann);
+await page.locator('#btnUndo').click();await page.waitForTimeout(120);
+ok('悔棋有语音播报',((await page.$eval('#a11yStatus',e=>e.textContent))||'').includes('悔棋'));
+
 /* 2. PvP：三三禁手拒绝落子 + ×标记 */
 await page.evaluate(()=>{setMode('pvp');newGame();});
 for(const [x,y] of [[6,7],[13,13],[8,7],[13,12],[7,6],[13,11],[7,8],[12,13]])await clickCell(x,y);
@@ -112,6 +130,7 @@ await page.screenshot({path:'/tmp/renju-foul.png'});
 await clickCell(7,7); /* 禁手点：应被拒绝 */
 const toast=(await page.textContent('#toast'))||'';
 ok('toast 提示禁手',toast.includes('禁手'),toast);
+ok('禁手也通过 aria-live 播报',((await page.$eval('#a11yStatus',e=>e.textContent))||'').includes('禁手'));
 ok('禁手后未落子（仍 8 手）',(await histLen())===8,'len='+(await histLen()));
 ok('禁手点有 × 且 ghost 抑制：foulSet 仍含 119',await page.evaluate(()=>foulSet.has(119)));
 await clickCell(7,5); /* 合法点 */
@@ -131,6 +150,7 @@ await clickCell(8,4);
 await page.waitForTimeout(1000);
 const dt=await dlgText();
 ok('白棋六连胜对话框',dt.includes('白棋获胜'),dt.slice(0,40));
+ok('长连胜播报含「长连」',((await page.$eval('#a11yStatus',e=>e.textContent))||'').includes('连成五子或长连'));
 ok('winCells=6',await page.evaluate(()=>winCells&&winCells.length===6));
 
 /* 5. 人机：简单 AI 应手正常 */

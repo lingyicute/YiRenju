@@ -1,10 +1,23 @@
 /* ai-selfplay-smoke.mjs — 真实 aiChoose 迭代加深路径对弈冒烟（hard 黑 vs expert 白）。
    每次 aiChoose 均校验：返回点合法(含禁手)、用时、终局判定正确。 */
 import {readFileSync,existsSync} from 'fs';
+/* SMOKE_MS：CI 里把每手预算压到几百毫秒，仍走完整 aiChoose 路径
+   （VCT / 迭代加深 / 送杀闸门 / 开局随机），但把烟测从约 3 分钟降到半分钟。
+   不设置时保持出厂的 1.2s / 3s 预算，用于本地全量验证。 */
+const SMOKE_MS=Math.max(0,+(process.env.SMOKE_MS||0));
 const pageUrl=new URL('../index.html',import.meta.url);
 if(!existsSync(pageUrl)){console.error('找不到 index.html（请在仓库根目录下运行）');process.exit(2);}
 const html=readFileSync(pageUrl,'utf8');
-const src=html.slice(html.indexOf('/*CORE_START*/'),html.indexOf('/*CORE_END*/'));
+let src=html.slice(html.indexOf('/*CORE_START*/'),html.indexOf('/*CORE_END*/'));
+if(SMOKE_MS){
+  const before=src;
+  src=src.replace(/'ai-hard':\{d:\[2,4,6,8\],t:1200,w:12\}/,
+                  `'ai-hard':{d:[2,4,6,8],t:${SMOKE_MS},w:12}`)
+         .replace(/'ai-expert':\{d:\[2,4,6,8,10\],t:3000,w:16\}/,
+                  `'ai-expert':{d:[2,4,6,8,10],t:${SMOKE_MS},w:16}`);
+  if(src===before||!src.includes(`t:${SMOKE_MS}`))
+    throw new Error('SMOKE_MS 补丁失败：AI_CFG 格式已变化，请同步更新本烟测');
+}
 const api=new Function(src+`
 return {N,EMPTY,BLACK,WHITE,isWinRun,blackLegality,isLegalMoveAt,aiChoose,winCellsAt,syncCand,setCell,setMode:(m)=>{mode=m;},getBoard:()=>board,setBoard:(b)=>{board=b;syncCand();},zobristInit,hashFromBoard};`)();
 const {N,EMPTY,BLACK,WHITE}=api;

@@ -1,0 +1,83 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 同一分支只保留最新一次运行，避免连续 push 堆积 4 分钟的旧任务
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Offline & self-bootstrap contract
+        run: node tests/offline-contract.mjs
+      - name: Rule engine & AI unit tests
+        run: node tests/renju-core-test.mjs
+      - name: TT mate-score regression
+        run: node tests/tt-mate-regression-test.mjs
+      - name: Search control regressions (frozen clock, zero deps)
+        run: node tests/ai-search-regression.mjs
+      - name: Optimisation equivalence regressions (naive reference impls)
+        run: node tests/ai-opt-regression.mjs
+      - name: AI decision safety regressions (frozen clock, zero deps)
+        run: node tests/ai-safety-regression.mjs
+      - name: Independent AI rules and state regressions
+        run: node tests/ai-review-regression.mjs
+      - name: Full-game smoke (real aiChoose path, shortened budget)
+        run: node tests/ai-selfplay-smoke.mjs
+        env:
+          SMOKE_MS: 250
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # 固定版本 + 缓存，避免每次 push 都碰运气从 CDN 拉 100+ MB 浏览器
+      PLAYWRIGHT_VERSION: 1.64.1
+      PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '60000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Cache Playwright headless shell
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-headless-shell-${{ env.PLAYWRIGHT_VERSION }}
+      - name: Install Playwright chromium (headless shell)
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "::group::Playwright install attempt $attempt"
+            if timeout 150 npm i --no-save --no-audit --no-fund \
+                playwright-core@"$PLAYWRIGHT_VERSION" @playwright/browser-chromium@"$PLAYWRIGHT_VERSION"; then
+              echo "::endgroup::"
+              break
+            fi
+            echo "::endgroup::"
+            if [ "$attempt" = 3 ]; then echo "Playwright 安装三次均失败"; exit 1; fi
+            rm -rf node_modules/@playwright node_modules/playwright-core
+            sleep 5
+          done
+          timeout 150 npx playwright-core install --with-deps chromium-headless-shell
+      - name: Serve and run browser e2e
+        run: |
+          python3 -m http.server 8600 &
+          sleep 1
+          node tests/renju-e2e.mjs

@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-162%20KiB-blue" alt="Self-contained HTML, approximately 162 KiB"></a>
+  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-174%20KiB-blue" alt="Self-contained HTML, approximately 174 KiB"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Runtime%20Setup-None-brightgreen" alt="No runtime setup"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Network%20Requests-Zero-brightgreen" alt="Zero network requests"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/github/stars/lingyicute/YiRenju?style=flat&color=yellow" alt="GitHub Stars"></a>
@@ -72,6 +72,8 @@ It is a **single, self-contained HTML file** with the markup, styles, and game l
 - **📱 Mouse, Touch, and Keyboard**
   - Hover to preview a stone on desktop. Tap to place a stone on mobile; swiping still scrolls the page.
   - The board scales to fit your screen. The keyboard cursor works with arrow keys or WASD.
+- **♿ Screen-Reader Status**
+  - Because the board is a single canvas, a visually hidden `aria-live` region announces every move with its coordinate (`A–P` (skipping `I`) × `1–15`) and move number, plus turn changes, forbidden-move refusals, undo and the final result.
 
 - **🔊 Stone Sounds and Haptics**
   - A crisp Web Audio click on every move — black and white stones sound different — plus a little arpeggio on your wins. Toggle it from the menu (☰).
@@ -152,19 +154,29 @@ The whole game lives in one file. Edit `index.html`, save it, and reload the pag
 
 ### Embedded Font
 
-The display font (Nebulove) ships inline as a base64 subset covering only the glyphs the UI actually renders (~50 KB), so the page never downloads a font. If you change any UI text, regenerate the subset or new characters will fall back to system fonts:
+The display font (Nebulove) ships inline as a base64 subset covering only the glyphs the UI actually renders (~52 KB, 424 glyphs; one emoji falls back to the system font), so the page never downloads a font. If you change any UI text, regenerate the subset or new characters will fall back to system fonts:
 
 ```bash
 pip install fonttools brotli
 python3 scripts/subset_font.py          # rewrites the @font-face block in index.html
-python3 scripts/subset_font.py --check  # report which glyphs would change, write nothing
+python3 scripts/subset_font.py --check  # report the subset size; writes nothing at all
 ```
 
 ### Testing
 
-The `tests/` directory holds plain Node.js scripts (ESM, no build step):
+The `tests/` directory holds plain Node.js scripts (ESM, no build step). Run everything the CI runs with:
 
 ```bash
+npm test                 # offline contract + all unit/regression suites + full-game smoke
+SMOKE_MS=250 npm test    # same, with a shortened per-move AI budget (~20 s instead of ~4 min)
+```
+
+Individual suites:
+
+```bash
+# Offline / self-bootstrap contract — zero dependencies
+node tests/offline-contract.mjs
+
 # Rule engine & AI unit tests — 66 assertions, zero dependencies
 node tests/renju-core-test.mjs
 
@@ -184,20 +196,21 @@ node tests/ai-review-regression.mjs
 node tests/ai-review-bench.mjs old.html index.html
 
 # Full-game smoke through the real AI move path — zero dependencies
+# SMOKE_MS=250 shortens the per-move budget without changing the aiChoose path
 node tests/ai-selfplay-smoke.mjs
 
 # AI strength benchmark — real aiChoose path incl. VCT/deepening/guard
 # (report only, ~6–7 min at GAMES=1; bump samples with GAMES=3)
 node tests/ai-tournament.mjs
 
-# Browser end-to-end UI tests — 40 assertions (one-time setup required)
+# Browser end-to-end UI tests — 47 assertions (one-time setup required)
 python3 -m http.server 8600     # serve this directory
 npm i playwright-core @playwright/browser-chromium
 npx playwright-core install chromium-headless-shell
 node tests/renju-e2e.mjs
 ```
 
-The unit and smoke suites assert on Renju rules, forbidden moves, and every AI search layer; the e2e suite additionally checks DOM behavior (foul markers, dialogs, records).
+The unit and smoke suites assert on Renju rules, forbidden moves, and every AI search layer; the e2e suite additionally checks DOM behavior (foul markers, dialogs, records, aria-live announcements). GitHub Actions runs every suite on push and pull request, with a separate Playwright job.
 
 <br>
 
