@@ -1728,14 +1728,14 @@ function updateSoundUI(){
 }
 
 /* ================= 对局流程 ================= */
-function newGame(){
+function newGame(silent){
   clearBoard();
   history=[];turn=BLACK;over=false;winner=0;winCells=null;recorded=false;
   aiThinking=false;aiToken++;hover=null;kbdCursor=false;
   stopTimer();elapsed=0;$('timer').textContent='00:00';
   LS.set('session',null);
   updateHUD();scheduleDraw();
-  announce('新的一局开始，黑棋先行。');
+  if(!silent)announce('新的一局开始，黑棋先行。');
   maybeAI(); /* AI 执黑时自动开出第一手 */
 }
 function placeAt(x,y,p){
@@ -2169,9 +2169,9 @@ function init(){
   updateSoundUI();
   initAiWorker();
   setMode(mode);
-  /* 先读存档再 newGame（newGame 会清空存档） */
+  /* 先读存档再 newGame（newGame 会清空存档）；引导阶段静默，等局面确定后再播报 */
   const ses=LS.get('session',null);
-  newGame();
+  newGame(true);
   if(ses&&Array.isArray(ses.moves)&&ses.moves.length&&!ses.over&&MODES_OK(ses.mode)){
     try{
       /* P1：存档逐手校验（整数坐标、盘内、落点为空），任何一手畸形即整档作废。
@@ -2181,7 +2181,7 @@ function init(){
       if(!coordOK)throw new Error('corrupt session');
       setMode(ses.mode);
       if(ses.side)applySide(ses.side);
-      newGame();
+      newGame(true);
       for(const m of ses.moves){
         if(board[m.x][m.y]!==EMPTY)throw new Error('corrupt session'); /* 重复落点 */
         setCell(m.x,m.y,turn);
@@ -2196,6 +2196,8 @@ function init(){
       $('timer').textContent=fmt(elapsed);
       if(history.length)startTimer();
       updateHUD();saveSession();scheduleDraw();
+      /* 回放不经过 placeAt，必须显式播报，否则读屏用户仍以为面对空盘 */
+      announce(`已恢复对局，共 ${history.length} 手，轮到${sideName(turn)}。`);
       if(mode!=='pvp'&&turn===aiP)maybeAI();
     }catch(err){
       LS.set('session',null);
