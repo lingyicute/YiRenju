@@ -18,9 +18,16 @@ const external = refs.filter(r => RESOURCE_TAGS.has(r.tag))
   .map(r => `<${r.tag} ${r.attr}="${r.url}">`);
 check(external.length === 0, `发现外部资源引用: ${external.join(', ')}`);
 check(/<link\s+rel=["']icon["']/i.test(html), '缺少内联 favicon（浏览器会请求 /favicon.ico）');
-check(/id=["']a11yStatus["'][^>]*role=["']status["'][^>]*aria-live=["']polite["']/.test(html),
+/* 属性顺序无关：先取出标签再做属性级断言（旧实现写死 id→role→aria-live 的书写顺序，
+   只调换两个属性就会误报） */
+const tagOf=re=>((html.match(re)||[''])[0]);
+const a11yTag=tagOf(/<[^>]*\bid=["']a11yStatus["'][^>]*>/);
+check(/\brole=["']status["']/.test(a11yTag)&&/\baria-live=["']polite["']/.test(a11yTag),
       '缺少 aria-live 状态播报区（canvas 棋盘需要它才能被读屏器感知）');
-check(/aria-describedby=["']boardHelp["']/.test(html), 'canvas 缺少 aria-describedby');
+check(/\baria-describedby=["']boardHelp["']/.test(html)&&/\bid=["']boardHelp["']/.test(html),
+      'canvas 缺少 aria-describedby 或 boardHelp 说明');
+check(/\baria-labelledby=["']dlgTitle["']/.test(tagOf(/<[^>]*\bid=["']dialog["'][^>]*>/)),
+      'dialog 缺少 aria-labelledby（读屏器进入弹窗时需读出标题）');
 check(!/@import\s+url\(\s*["']?https?:/i.test(html), 'CSS 中存在远程 @import');
 check(!/url\(\s*["']?https?:/i.test(html), 'CSS 中存在远程 url() 资源');
 

@@ -126,6 +126,42 @@ ok('落子播报含坐标 H8 与手数',ann.includes('H8')&&ann.includes('第 1 
 await page.locator('#btnUndo').click();await page.waitForTimeout(120);
 ok('悔棋有语音播报',((await page.$eval('#a11yStatus',e=>e.textContent))||'').includes('悔棋'));
 
+/* 1.6 光标 / 坐标 / 合并播报（等 live 区文本，避免和 announce 的 30ms 定时器抢跑） */
+const waitAnn=t=>page.waitForFunction(
+  x=>document.getElementById('a11yStatus').textContent.includes(x),t,{timeout:3000});
+await page.evaluate(()=>{setMode('pvp');newGame();});
+await page.locator('#board').focus();
+await page.evaluate(()=>{cursor={x:7,y:7};kbdCursor=false;});
+await page.keyboard.press('ArrowRight');
+await waitAnn('光标');
+ok('方向键移动光标有播报',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('光标 J8'));
+ok('列字母跳过 I',await page.evaluate(()=>{
+  const o=[];for(let x=0;x<15;x++)o.push(coordLabel(x,0)[0]);return o.join('')==='ABCDEFGHJKLMNOP';
+}));
+await page.evaluate(()=>{setMode('pvp');newGame();placeAt(0,14,turn);});
+await waitAnn('A1');
+ok('左下角播报 A1（行号自底部起算）',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('A1'));
+await page.evaluate(()=>placeAt(14,0,turn));
+await waitAnn('P15');
+ok('右上角播报 P15',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('P15'));
+ok('同批播报合并而非丢弃（新局+落子都保留）',await page.evaluate(async()=>{
+  setMode('pvp');newGame();placeAt(7,7,1);
+  await new Promise(r=>setTimeout(r,150));
+  const t=document.getElementById('a11yStatus').textContent;
+  return t.includes('新的一局开始')&&t.includes('H8');
+}));
+/* 恢复存档：回放不走 placeAt，必须单独播报真实局面 */
+await page.evaluate(()=>{
+  history.length=0;
+  localStorage.setItem('yirenju.settings',JSON.stringify({side:'B',mode:'pvp'}));
+  localStorage.setItem('yirenju.session',JSON.stringify({mode:'pvp',over:false,elapsed:7,
+    moves:[{x:7,y:7},{x:8,y:8},{x:6,y:6}]}));
+});
+await page.reload({waitUntil:'load'});await page.waitForTimeout(250);
+await waitAnn('已恢复对局');
+ok('恢复存档播报真实局面',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('已恢复对局，共 3 手'));
+/* 光标落在禁手点要有禁手提示（复用第 2 段的禁手局面） */
+
 /* 2. PvP：三三禁手拒绝落子 + ×标记 */
 await page.evaluate(()=>{setMode('pvp');newGame();});
 for(const [x,y] of [[6,7],[13,13],[8,7],[13,12],[7,6],[13,11],[7,8],[12,13]])await clickCell(x,y);
@@ -136,6 +172,10 @@ await clickCell(7,7); /* 禁手点：应被拒绝 */
 const toast=(await page.textContent('#toast'))||'';
 ok('toast 提示禁手',toast.includes('禁手'),toast);
 ok('禁手也通过 aria-live 播报',((await page.$eval('#a11yStatus',e=>e.textContent))||'').includes('禁手'));
+await page.evaluate(()=>{cursor={x:7,y:7};kbdCursor=true;announceCursor();});
+await waitAnn('光标');
+const cursorAnn=await page.$eval('#a11yStatus',e=>e.textContent);
+ok('光标停在禁手点会提示禁手',cursorAnn.includes('光标 H8')&&cursorAnn.includes('三三禁手'),cursorAnn);
 ok('禁手后未落子（仍 8 手）',(await histLen())===8,'len='+(await histLen()));
 ok('禁手点有 × 且 ghost 抑制：foulSet 仍含 119',await page.evaluate(()=>foulSet.has(119)));
 await clickCell(7,5); /* 合法点 */
@@ -163,6 +203,11 @@ await page.evaluate(()=>{closeDialog();setMode('ai-easy');newGame();});
 await clickCell(7,7);
 await page.waitForTimeout(1500);
 ok('AI 应手后共 2 手',(await histLen())===2,'len='+(await histLen()));
+ok('AI 落子也有播报',await page.evaluate(async()=>{
+  await new Promise(r=>setTimeout(r,150));
+  const t=document.getElementById('a11yStatus').textContent;
+  return t.includes('第 2 手')&&t.includes('轮到黑棋');
+}));
 ok('AI Worker 已挂载自举',await page.evaluate(()=>typeof aiWorker==='object'&&aiWorker!==null));
 
 /* 6. 帮助弹窗（规则说明） */

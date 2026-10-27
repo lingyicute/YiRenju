@@ -203,7 +203,7 @@ node tests/ai-selfplay-smoke.mjs
 # (report only, ~6–7 min at GAMES=1; bump samples with GAMES=3)
 node tests/ai-tournament.mjs
 
-# Browser end-to-end UI tests — 47 assertions (one-time setup required)
+# Browser end-to-end UI tests — 55 assertions (one-time setup required)
 python3 -m http.server 8600     # serve this directory
 npm i playwright-core @playwright/browser-chromium
 npx playwright-core install chromium-headless-shell
