@@ -1618,16 +1618,27 @@ const LETTERS='ABCDEFGHJKLMNOP';          /* 列坐标跳过 I，与围棋记谱
 const coordLabel=(x,y)=>LETTERS[x]+(y+1);
 const sideName=p=>p===BLACK?'黑棋':'白棋';
 let announceTid=0;
+const announceBuf=[];
 function announce(msg){
   const el=$('a11yStatus');if(!el)return;
-  /* 先清空再下一帧写入：部分读屏器不会重复播报完全相同的文本 */
-  el.textContent='';
-  clearTimeout(announceTid);
-  announceTid=setTimeout(()=>{el.textContent=msg;},30);
+  /* 30ms 内的多条消息合并成一句播报。旧实现用 clearTimeout 覆盖，
+     会把前一条直接丢掉（例如点「我执白」后 newGame 的播报会被 AI 首手挤掉）。 */
+  if(announceBuf[announceBuf.length-1]!==msg)announceBuf.push(msg);
+  if(announceTid)return;
+  const flush=()=>{
+    announceTid=0;
+    const text=announceBuf.splice(0).join(' ');
+    el.textContent='';
+    /* 先清空再下一帧写入：部分读屏器不会重复播报完全相同的文本 */
+    requestAnimationFrame(()=>{el.textContent=text;});
+  };
+  announceTid=setTimeout(flush,30);
 }
+/* 白棋长连也算胜；黑棋长连是禁手，只可能恰五取胜 */
+const winPhrase=p=>p===WHITE?'连成五子或长连':'连成五子';
 function announceMove(x,y,p){
   const who=sideName(p),at=coordLabel(x,y);
-  if(over)announce(winner?`${who} ${at} 连成五子或长连，${who}获胜，共 ${history.length} 手。`
+  if(over)announce(winner?`${who} ${at} ${winPhrase(winner)}，${who}获胜，共 ${history.length} 手。`
                         :`${who} ${at}，棋盘已满，平局，共 ${history.length} 手。`);
   else announce(`${who} ${at}，第 ${history.length} 手，轮到${sideName(turn)}。`);
 }
@@ -1959,14 +1970,14 @@ function showGameOver(p){
   if(mode==='pvp'){
     icon=p?ICO.crown:ICO.handshake;
     title=p?`${p===BLACK?'黑棋':'白棋'}获胜！`:'平局！';
-    body=p?`连成五子，${meta}。`:`棋盘已满，${meta}。`;
+    body=p?`${winPhrase(p)}，${meta}。`:`棋盘已满，${meta}。`;
   }else if(p===humanP){
     const r=recOf(mode.slice(3)),sideTxt=humanP===BLACK?'黑':'白';
     icon=ICO.crown;title='你赢了！🎉';
     body=`恭喜！你执${sideTxt}在「${MODE_LABEL[mode]}」难度战胜了 AI。<br>${meta} · 本难度执${sideTxt}战绩 ${r.w} 胜 ${r.l} 负`;
   }else if(p===3-humanP){
     icon=ICO.trophy;title='AI 获胜';
-    body=`AI 连成五子，${meta}。<br>调整策略后再试一次吧！`;
+    body=`AI ${winPhrase(p)}，${meta}。<br>调整策略后再试一次吧！`;
   }else{
     icon=ICO.handshake;title='平局！';
     body=`棋盘已满，势均力敌，${meta}。`;
