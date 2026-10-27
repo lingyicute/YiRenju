@@ -105,24 +105,29 @@ def main():
 
     chars = collect_chars(html, all_text=args.all_text, extra=extra)
     mode = "全文本" if args.all_text else "可渲染文本"
-    print("需要保留的字符：%d 个（%s）" % (len(chars), mode))
+    print("可渲染字符：%d 个（%s）" % (len(chars), mode))
 
     ttf = args.ttf or "/tmp/Nebulove.woff2"
     if not args.ttf:
-        print("下载完整字体：%s" % args.font_url)
-        download(args.font_url, ttf)
+        if os.path.exists(ttf):
+            print("复用已下载的完整字体：%s（不重新下载）" % ttf)
+        else:
+            print("下载完整字体：%s" % args.font_url)
+            download(args.font_url, ttf)
     print("完整字体：%.0f KB（%s）" % (os.path.getsize(ttf) / 1024, os.path.basename(ttf)))
 
     wofl, covered = build_subset(chars, ttf)
     missing = {c for c in chars if ord(c) not in covered}
+    print("字体字形：%d 个（可渲染字符 %d 个中，%d 个本字体没有字形）"
+          % (len(covered), len(chars), len(missing)))
     print("子集：%.2f KB woff2" % (len(wofl) / 1024))
     if missing:
         print("⚠️ 字体本身不含这些字符（将回退到系统字体）：%s" %
               " ".join("U+%04X" % ord(c) for c in sorted(missing)))
 
     if args.check:
-        # --check 必须真正无副作用：既不改页面，也不落盘生成子集文件。
-        print("--check：不写入页面及子集文件。")
+        # --check 不改页面、不在仓库里生成文件；完整字体若已缓存在 /tmp 则直接复用。
+        print("--check：不写入页面及仓库内文件（完整字体缓存在 %s）" % ttf)
         return
 
     keep = os.path.join(HERE, "Nebulove-subset.woff2")
