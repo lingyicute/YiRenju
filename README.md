@@ -157,7 +157,7 @@ The display font (Nebulove) ships inline as a base64 subset covering only the gl
 ```bash
 pip install fonttools brotli
 python3 scripts/subset_font.py          # rewrites the @font-face block in index.html
-python3 scripts/subset_font.py --check  # report which glyphs would change, write nothing
+python3 scripts/subset_font.py --check  # report the subset size; writes nothing at all
 ```
 
 ### Testing
