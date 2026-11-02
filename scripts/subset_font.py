@@ -30,7 +30,7 @@ def strip_non_render_text(html):
 
     def _js(m):
         s = re.sub(r'/\*.*?\*/', ' ', m.group(1), flags=re.S)      # 块注释
-        s = re.sub(r'(?m)^[ \t]*//.*$', ' ', s)                    # 行注释
+        s = re.sub(r'(?m)(?:^|(?<=[;{}\s]))//.*$', ' ', s)        # 行注释（含行尾注释）
         return s
 
     return re.sub(r'<script\b[^>]*>(.*?)</script>', _js, html, flags=re.S | re.I)

@@ -154,7 +154,7 @@ The whole game lives in one file. Edit `index.html`, save it, and reload the pag
 
 ### Embedded Font
 
-The display font (Nebulove) ships inline as a base64 subset covering only the glyphs the UI actually renders (~52 KB, 429 glyphs; one emoji falls back to the system font), so the page never downloads a font. If you change any UI text, regenerate the subset or new characters will fall back to system fonts:
+The display font (Nebulove) ships inline as a base64 subset covering only the glyphs the UI actually renders (~52 KB, 422 glyphs; one emoji falls back to the system font), so the page never downloads a font. If you change any UI text, regenerate the subset or new characters will fall back to system fonts:
 
 ```bash
 pip install fonttools brotli
@@ -180,7 +180,7 @@ Individual suites:
 # Offline / self-bootstrap contract — zero dependencies
 node tests/offline-contract.mjs
 
-# Rule engine & AI unit tests — 69 assertions, zero dependencies
+# Rule engine & AI unit tests — 70 assertions, zero dependencies
 node tests/renju-core-test.mjs
 
 # Search control regressions (abort/root/guard) — 6 cases, frozen clock, zero dependencies
@@ -206,7 +206,7 @@ node tests/ai-selfplay-smoke.mjs
 # (report only, ~6–7 min at GAMES=1; bump samples with GAMES=3)
 node tests/ai-tournament.mjs
 
-# Browser end-to-end UI tests — 55 assertions (one-time setup required)
+# Browser end-to-end UI tests — 59 assertions (one-time setup required)
 python3 -m http.server 8600     # serve this directory
 npm i playwright-core @playwright/browser-chromium
 npx playwright-core install chromium-headless-shell
