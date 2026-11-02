@@ -538,10 +538,6 @@ function stoneScore(x,y,p){
 function evalPoint(x,y,p){
   board[x][y]=p;const s=stoneScore(x,y,p);board[x][y]=EMPTY;return s;
 }
-function isFiveAt(x,y,p){
-  for(const d of DIRS){if(runInfo(x,y,d[0],d[1],p)[0]>=5)return true;}
-  return false;
-}
 /* 连珠胜负：黑棋必须恰好五连（长连为禁手），白棋五连及以上均获胜 */
 function isWinRun(x,y,p){
   for(const d of DIRS){
@@ -796,14 +792,14 @@ function fourMoves(p,cap){
       wcTemp(c[0],c[1],BLACK);
       const t=blackMoveType(c[0],c[1]);
       if(t!=='ok'){wcUntemp(c[0],c[1],BLACK);continue;} /* 禁手与直接胜着（已由取胜点覆盖）跳过 */
-    }else wcTemp(c[0],c[1],p);
+    }else board[c[0]][c[1]]=p;
     let dirs=0,open=false;
     for(let i=0;i<4;i++){
       if(!(potD&(1<<i)))continue;
       const n=ptsToFiveThrough(c[0],c[1],DIRS[i][0],DIRS[i][1],p);
       if(n>=1){dirs++;if(n>=2)open=true;}
     }
-    wcUntemp(c[0],c[1],p);
+    if(p===BLACK)wcUntemp(c[0],c[1],BLACK);else board[c[0]][c[1]]=EMPTY;
     if(dirs>=1)out.push({x:c[0],y:c[1],k:(dirs>1?2:0)+(open?1:0)});
   }
   out.sort((a,b)=>b.k-a.k||((a.x*16+a.y)-(b.x*16+b.y))); /* 同分按点位定序，保证可复现 */
@@ -899,6 +895,7 @@ function evalDiff(p){
 function fivePoint(p){
   const cands=candidates(1);
   for(const c of cands){
+    if(board[c[0]][c[1]]!==EMPTY)continue;
     if(!canFive(c[0],c[1],p))continue;      /* 成五下界筛，见 winPointsBoth */
     board[c[0]][c[1]]=p;const f=isWinRun(c[0],c[1],p);board[c[0]][c[1]]=EMPTY;
     if(f)return {x:c[0],y:c[1]};
@@ -982,14 +979,21 @@ function threeMovesVCT(p,cap){
   for(const c of candidates(2)){
     const x=c[0],y=c[1];
     if(board[x][y]!==EMPTY)continue;
-    if(p===BLACK&&!isLegalMoveAt(p,x,y))continue;
-    pushStone(x,y,p);
-    let hit=false;
-    for(const d of DIRS){
-      if(winCount(x,y,d[0],d[1],p)<2)continue;
-      if(openThreeDir(x,y,d[0],d[1],p)){hit=true;break;}
+    let potD=0;
+    for(let i=0;i<4;i++){
+      if(winCount(x,y,DIRS[i][0],DIRS[i][1],p)>=2)potD|=1<<i;
     }
-    pushStone(x,y,EMPTY);
+    if(!potD)continue;
+    if(p===BLACK){
+      wcTemp(x,y,BLACK);
+      const t=blackMoveType(x,y);
+      if(t!=='ok'&&t!=='win'){wcUntemp(x,y,BLACK);continue;}
+    }else board[x][y]=p;
+    let hit=false;
+    for(let i=0;i<4;i++){
+      if((potD&(1<<i))&&openThreeDir(x,y,DIRS[i][0],DIRS[i][1],p)){hit=true;break;}
+    }
+    if(p===BLACK)wcUntemp(x,y,BLACK);else board[x][y]=EMPTY;
     if(hit)out.push({x:x,y:y,s:evalPoint(x,y,p)});
   }
   out.sort((a,b)=>b.s-a.s||((a.x*16+a.y)-(b.x*16+b.y)));
@@ -1034,7 +1038,7 @@ function defenseOptions(att,lm,dfn,ctr){
   }
   opts.sort((a,b)=>b.s-a.s||((a.x*16+a.y)-(b.x*16+b.y)));
   if(opts.length>VCT_DEF_CAP)opts.length=VCT_DEF_CAP;
-  if(ctr>0)for(const f of fourMoves(dfn,2))opts.push({x:f.x,y:f.y,four:true});
+  if(ctr>0)for(const f of fourMoves(dfn,2))if(!opts.some(o=>o.x===f.x&&o.y===f.y))opts.push({x:f.x,y:f.y,four:true});
   return opts;
 }
 /* 防守方走棋（轮到 3-att）：返回攻方能否取胜 */
@@ -1329,6 +1333,7 @@ function aiChooseRaw(p){
   }
   vctBreakers=null;
   if(!root.length)return null;
+  if(root.length===1)return {x:root[0].x,y:root[0].y};
   let best=staticBest||root[0],bestV=-Infinity;
   /* P1 开局多样性：≤8 子时根节点改用全窗口逐手精确打分，末层分值接近者入池随机——
      老版本的同分随机从未触发过（每层都有严格唯一最优），Expert 开局是一套固定谱。 */
@@ -1354,18 +1359,22 @@ function aiChooseRaw(p){
     /* ties[0] 是严格刷新 curV 的那手，必为精确分；其余并列者可能只拿到了根窗口的上界值，
        随机前先用全窗口复核，剔除“形似同分实则更差”的着法，再在真同分中随机 */
     if(cur&&ties.length>1&&!searchAborted){
-      const pool=[ties[0]];
-      for(let i=1;i<ties.length;i++){
-        if(searchDeadline-Date.now()<50)break;    /* 接近尾声就不再开启复查 */
-        const m=ties[i];
-        pushStone(m.x,m.y,p);
-        searchPly=1;
-        const ev=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,Infinity,op,m.x,m.y);
-        searchPly=0;
-        pushStone(m.x,m.y,EMPTY);
-        if(!searchAborted&&ev===curV)pool.push(m);
+      if(OPENING){
+        cur=ties[(Math.random()*ties.length)|0];
+      }else{
+        const pool=[ties[0]];
+        for(let i=1;i<ties.length;i++){
+          if(searchDeadline-Date.now()<50)break;    /* 接近尾声就不再开启复查 */
+          const m=ties[i];
+          pushStone(m.x,m.y,p);
+          searchPly=1;
+          const ev=isWinRun(m.x,m.y,p)?9000000:-negamax(depth-1,-Infinity,Infinity,op,m.x,m.y);
+          searchPly=0;
+          pushStone(m.x,m.y,EMPTY);
+          if(!searchAborted&&ev===curV)pool.push(m);
+        }
+        if(pool.length>1)cur=pool[(Math.random()*pool.length)|0];
       }
-      if(pool.length>1)cur=pool[(Math.random()*pool.length)|0];
     }
     /* 不同深度的分数不可直接比较。只有全部根着搜索完成才提交；
        首层也没完成时，保留已经过合法性过滤的静态首选作为兜底。
