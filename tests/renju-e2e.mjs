@@ -257,6 +257,32 @@ ok('执白胜计入 records.w 桶',await page.evaluate(()=>records.w.easy.w===1)
 ok('执白胜文案含“执白”',(await dlgText()).includes('执白'));
 ok('执黑桶不受影响',await page.evaluate(()=>records.b.easy.w===0&&records.b.easy.l===0));
 await page.evaluate(()=>{closeDialog();applySide('B');newGame();});
+/* 13. 平局不计入负场、Ctrl+R 不误触重开、750ms 内重开不弹旧终局窗、配色弹窗聚焦与归还焦点 */
+ok('平局不计入战绩负场',await page.evaluate(()=>{
+  setMode('ai-easy');applySide('B');newGame();
+  const l0=records.b.easy.l;
+  over=true;winner=0;onGameEnd(0);
+  const okDraw=records.b.easy.l===l0;
+  newGame();
+  return okDraw;
+}));
+await page.evaluate(()=>{setMode('pvp');newGame();placeAt(7,7,turn);});
+await page.keyboard.press('Control+r');
+ok('Ctrl+R 不误触重开清空棋局',(await histLen())===1);
+ok('终局后 750ms 内重开不会弹出过期结算窗',await page.evaluate(async()=>{
+  setMode('pvp');newGame();
+  for(let i=0;i<5;i++)placeAt(3+i,3,1);
+  newGame();
+  await new Promise(r=>setTimeout(r,820));
+  return !dialogOpenFlag&&scrim.hidden===true;
+}));
+ok('配色弹窗自动聚焦当前色块且关闭后归还焦点至棋盘',await page.evaluate(async()=>{
+  showPalette();
+  await new Promise(r=>setTimeout(r,60));
+  const focusedInDlg=document.activeElement&&document.activeElement.classList.contains('swatch');
+  closeDialog();
+  return focusedInDlg&&document.activeElement===document.getElementById('board');
+}));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
