@@ -321,6 +321,12 @@ api.zobristInit();api.hashFromBoard();
   api.pushStone(9,9,WHITE);api.pushStone(9,9,EMPTY);
   ck('Zobrist 撤白子对合',api.getHash().join(','),h0);
 }
+/* (ao) 唯一候选快返：空盘天元唯一候选时，expert 无需空跑 3 秒加深搜索 */
+blank();api.setMode('ai-expert');
+{
+  const t0=Date.now(),mv=api.aiChoose(BLACK),dt=Date.now()-t0;
+  ck('空盘唯一候选快返天元(<100ms)',!!mv&&mv.x===7&&mv.y===7&&dt<100,true);
+}
 api.setMode('ai-easy');
 
 console.log(`\n${pass} passed, ${fail} failed`);

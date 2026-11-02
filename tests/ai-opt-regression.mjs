@@ -119,11 +119,29 @@ function nFourMoves(p,cap){
   out.sort((a,b)=>b.k-a.k||((a.x*16+a.y)-(b.x*16+b.y)));
   return out.slice(0,cap||4);
 }
+function nThreeMovesVCT(p,cap){
+  const out=[];
+  for(const c of candidates(2)){
+    const x=c[0],y=c[1];
+    if(board[x][y]!==EMPTY)continue;
+    if(p===BLACK&&!isLegalMoveAt(p,x,y))continue;
+    pushStone(x,y,p);
+    let hit=false;
+    for(const d of DIRS){
+      if(nWinCount(x,y,d[0],d[1],p)<2)continue;
+      if(nOpenThreeDir(x,y,d[0],d[1],p)){hit=true;break;}
+    }
+    pushStone(x,y,EMPTY);
+    if(hit)out.push({x:x,y:y,s:evalPoint(x,y,p)});
+  }
+  out.sort((a,b)=>b.s-a.s||((a.x*16+a.y)-(b.x*16+b.y)));
+  return out.slice(0,cap);
+}
 return {N,EMPTY,BLACK,WHITE,DIRS,
   setBoard:(b)=>{board=b;syncCand();},getBoard:()=>board,syncCand,setCell,pushStone,zobristInit,hashFromBoard,
-  candidates,winCount,winPointsOne,winPointsBoth,winPointsAll,fourMoves,ptsToFiveThrough,
+  candidates,winCount,winPointsOne,winPointsBoth,winPointsAll,fourMoves,threeMovesVCT,ptsToFiveThrough,
   isFreeThreeDir,openThreeDir,linkedTo,runInfo,
-  n:{nWinCount,nPtsToFive,nIsFreeThreeDir,nOpenThreeDir,nWinPointsOne,nWinPointsBoth,nFourMoves}};`)();
+  n:{nWinCount,nPtsToFive,nIsFreeThreeDir,nOpenThreeDir,nWinPointsOne,nWinPointsBoth,nFourMoves,nThreeMovesVCT}};`)();
 const {N,EMPTY,BLACK,WHITE,DIRS}=api;
 let pass=0,fail=0;
 const ck=(label,cond,extra)=>{if(cond)pass++;else{fail++;console.log('FAIL '+label+(extra!==undefined?'  '+extra:''));}};
@@ -219,8 +237,9 @@ for(let g=0;g<14;g++){
     const g2=api.winPointsBoth(p),w2=api.n.nWinPointsBoth(p);
     ck(`#${g} winPointsBoth(${p}).mine 一致`,key(g2.mine)===key(w2.mine),key(g2.mine)+' vs '+key(w2.mine));
     ck(`#${g} winPointsBoth(${p}).opp 一致`,key(g2.opp)===key(w2.opp),key(g2.opp)+' vs '+key(w2.opp));
-    /* 冲四着法（含按方向筛 + 排序 / 截断）必须与朴素完全同序 */
+    /* 冲四着法与 VCT 活三着法（含按方向筛 + 排序 / 截断）必须与朴素完全同序 */
     ck(`#${g} fourMoves(${p}) 与朴素实现一致`,JSON.stringify(api.fourMoves(p,4))===JSON.stringify(api.n.nFourMoves(p,4)));
+    ck(`#${g} threeMovesVCT(${p}) 与朴素实现一致`,JSON.stringify(api.threeMovesVCT(p,6))===JSON.stringify(api.n.nThreeMovesVCT(p,6)));
   }
   /* 盘面没有被临时写格污染 */
   ck(`#${g} 临时写格已还原`,boardKey()===POS[POS.length-1]);
