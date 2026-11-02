@@ -99,7 +99,7 @@ body{
   transition:background .3s,color .3s;
 }
 button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer}
-button:focus-visible{outline:2.5px solid var(--primary);outline-offset:2px;border-radius:8px}
+button:focus-visible{outline:2.5px solid var(--primary);outline-offset:2px}
 svg{display:block}
 
 /* ============ 顶栏 ============ */
@@ -1888,16 +1888,20 @@ function undo(){
 
 /* ================= 对话框系统 ================= */
 const scrim=$('scrim'),dialog=$('dialog');
-let dialogOpenFlag=false;
+let dialogOpenFlag=false,dlgFocusTid=0;
 function openDialog(html){
   dialog.innerHTML=html;
   scrim.hidden=false;dialogOpenFlag=true;
-  const b=dialog.querySelector('.btn-pill.primary');
-  if(b)setTimeout(()=>b.focus(),30);
+  clearTimeout(dlgFocusTid);
+  const b=dialog.querySelector('.btn-pill.primary')||dialog.querySelector('.swatch.sel,button');
+  if(b)dlgFocusTid=setTimeout(()=>b.focus(),30);
 }
 function closeDialog(){
+  clearTimeout(dlgFocusTid);dlgFocusTid=0;
+  const restoreFocus=dialog.contains(document.activeElement);
   scrim.hidden=true;dialogOpenFlag=false;
   $('btnPalette').classList.remove('active');
+  if(restoreFocus)canvas.focus({preventScroll:true});
 }
 scrim.addEventListener('click',e=>{if(e.target===scrim)closeDialog();});
 
