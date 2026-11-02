@@ -1605,7 +1605,7 @@ function fitBoard(){
 let rszT=null;
 window.addEventListener('resize',()=>{clearTimeout(rszT);rszT=setTimeout(fitBoard,60);});
 window.addEventListener('orientationchange',()=>setTimeout(fitBoard,120));
-window.addEventListener('beforeunload',()=>{if(history.length)LS.set('session',{mode,moves:history.map(m=>({x:m.x,y:m.y})),elapsed,over});});
+window.addEventListener('beforeunload',()=>{if(history.length)saveSession();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&history.length)saveSession();});
 
 /* ================= 计时 ================= */
@@ -1774,8 +1774,10 @@ function newGame(silent){
   stopTimer();elapsed=0;$('timer').textContent='00:00';
   LS.set('session',null);
   updateHUD();scheduleDraw();
-  if(!silent)announce('新的一局开始，黑棋先行。');
-  maybeAI(); /* AI 执黑时自动开出第一手 */
+  if(!silent){
+    announce('新的一局开始，黑棋先行。');
+    maybeAI(); /* AI 执黑时自动开出第一手 */
+  }
 }
 function placeAt(x,y,p){
   setCell(x,y,p);
@@ -2187,6 +2189,7 @@ document.addEventListener('keydown',e=>{
     $('btnMenu').focus();
     return;
   }
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
   /* 不劫持按钮/链接/输入框的原生按键：Space/Enter 应触发其 click，
      方向键也不应在用户操作控件时移动棋盘光标。棋盘本身可通过 Tab 聚焦。 */
   const active=document.activeElement;
@@ -2205,8 +2208,8 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(k==='Enter'||k===' '){
-    const ok=tryHumanPlace({x:cursor.x,y:cursor.y});
-    if(ok){kbdCursor=true;hover=null;scheduleDraw();} /* 键盘落子后保留光标 */
+    tryHumanPlace({x:cursor.x,y:cursor.y});
+    if(!over&&!dialogOpenFlag){kbdCursor=true;hover=null;scheduleDraw();} /* 键盘落子或禁手拒落后保留光标 */
     return;
   }
   if(k==='z'||k==='Z'){undo();return;}
@@ -2227,24 +2230,24 @@ function init(){
   const ses=LS.get('session',null);
   newGame(true);
   if(ses&&Array.isArray(ses.moves)&&ses.moves.length&&!ses.over&&MODES_OK(ses.mode)){
+    const origMode=mode,origSide=settings.side;
     try{
-      /* P1：存档逐手校验（整数坐标、盘内、落点为空），任何一手畸形即整档作废。
+      /* P1：存档逐手校验（整数坐标、盘内、落点合法、未提前终局），任何一手畸形即整档作废。
          原实现对内容零校验，异常逃出 init() 会跳过末尾 fitBoard()，整页棋盘报废。 */
-      const coordOK=ses.moves.every(m=>Number.isInteger(m.x)&&Number.isInteger(m.y)
+      const coordOK=ses.moves.length<N*N&&ses.moves.every(m=>m&&Number.isInteger(m.x)&&Number.isInteger(m.y)
         &&m.x>=0&&m.x<N&&m.y>=0&&m.y<N);
       if(!coordOK)throw new Error('corrupt session');
       setMode(ses.mode);
-      if(ses.side)applySide(ses.side);
+      if(ses.side==='B'||ses.side==='W')applySide(ses.side);
       newGame(true);
       for(const m of ses.moves){
-        if(board[m.x][m.y]!==EMPTY)throw new Error('corrupt session'); /* 重复落点 */
+        if(!isLegalMoveAt(turn,m.x,m.y))throw new Error('corrupt session'); /* 重复落点或黑方禁手 */
         setCell(m.x,m.y,turn);
+        if(winCellsAt(m.x,m.y,turn))throw new Error('corrupt session'); /* 已分胜负却标为未终局 */
         history.push({x:m.x,y:m.y,p:turn,at:0});
         turn=3-turn;
       }
       turn=history.length%2===0?BLACK:WHITE;
-      /* P0：作废恢复前 newGame 已投出的 AI 任务，并清掉它留下的思考态——
-         存档停在人类回合时，那份迟到结果曾把 aiThinking 卡死在 true（整盘冻结）。 */
       aiToken++;aiThinking=false;
       elapsed=Math.max(0,ses.elapsed|0);
       $('timer').textContent=fmt(elapsed);
@@ -2252,13 +2255,14 @@ function init(){
       updateHUD();saveSession();scheduleDraw();
       /* 回放不经过 placeAt，必须显式播报，否则读屏用户仍以为面对空盘 */
       announce(`已恢复对局，共 ${history.length} 手，轮到${sideName(turn)}。`);
-      if(mode!=='pvp'&&turn===aiP)maybeAI();
     }catch(err){
+      setMode(origMode);applySide(origSide);
       LS.set('session',null);
-      newGame();
+      newGame(true);
       updateHUD();scheduleDraw();
     }
   }
+  if(mode!=='pvp'&&turn===aiP)maybeAI();
   fitBoard();
   setTimeout(fitBoard,80);
 }
