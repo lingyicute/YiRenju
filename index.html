@@ -13,7 +13,7 @@
 (function(){try{var s=JSON.parse(localStorage.getItem('yirenju.settings')||localStorage.getItem('yimoku.settings')||'null')||{};
 var d=document.documentElement;
 if(s.theme==='light'||s.theme==='dark')d.dataset.theme=s.theme;else if(!window.matchMedia('(prefers-color-scheme: dark)').matches)d.dataset.theme='light';
-if(s.accent)d.dataset.accent=s.accent;}catch(e){}})();
+if(['purple','blue','teal','green','yellow','orange','pink','red'].indexOf(s.accent)>=0)d.dataset.accent=s.accent;}catch(e){}})();
 </script>
 <style>
 /* ===== Nebulove 子集（内嵌，离线可用）=====
@@ -370,6 +370,8 @@ const LS={
   set(k,v){try{localStorage.setItem('yirenju.'+k,JSON.stringify(v));}catch(e){}}
 };
 const ACCENTS={purple:'#a78bfa',blue:'#82aaff',teal:'#5edfd0',green:'#6fdc8c',yellow:'#ecc64f',orange:'#f6ad7b',pink:'#f17bb0',red:'#ef6f6f'};
+/* 只认自有键：ACCENTS[a] 对 'constructor'、'toString'、'__proto__' 等原型键也为真 */
+const isAccent=a=>Object.prototype.hasOwnProperty.call(ACCENTS,a);
 const MODE_LABEL={'ai-easy':'简单','ai-medium':'中等','ai-hard':'困难','ai-expert':'专家','pvp':'双人'};
 const SUBTITLE={'ai-easy':'人机对战 · 简单','ai-medium':'人机对战 · 中等','ai-hard':'人机对战 · 困难','ai-expert':'人机对战 · 专家','pvp':'双人同屏'};
 const DIFF_KEYS=['easy','medium','hard','expert'];
@@ -1434,7 +1436,7 @@ function recOf(k){const bkt=humanP===BLACK?records.b:records.w;return bkt[k]=bkt
 const ACC_DEEP={purple:'#6a54c8',blue:'#3f63c0',teal:'#0f7a6e',green:'#1e7a3c',yellow:'#7d660d',orange:'#a04d08',pink:'#b02e6e',red:'#c03230'};
 
 function applyTheme(t){document.documentElement.dataset.theme=t;settings.theme=t;LS.set('settings',settings);refreshPalette();}
-function applyAccent(a){if(!ACCENTS[a])return;document.documentElement.dataset.accent=a;settings.accent=a;LS.set('settings',settings);refreshPalette();}
+function applyAccent(a){if(!isAccent(a))return;document.documentElement.dataset.accent=a;settings.accent=a;LS.set('settings',settings);refreshPalette();}
 $('btnTheme').addEventListener('click',()=>{
   applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
 });
@@ -1474,7 +1476,7 @@ function mixHex(a,b,wb){
 function rgbaOf(h,alpha){const c=hex2rgb(h);return `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;}
 function refreshPalette(){
   const dark=document.documentElement.dataset.theme==='dark';
-  const accName=ACCENTS[document.documentElement.dataset.accent]?document.documentElement.dataset.accent:'purple';
+  const accName=isAccent(document.documentElement.dataset.accent)?document.documentElement.dataset.accent:'purple';
   const acc=ACCENTS[accName];
   pal={
     board: mixHex(dark?'#1a1624':'#faf8ff',acc,dark?0.12:0.15),
@@ -2266,7 +2268,7 @@ function init(){
   /* 存储里的主题/配色可能被改坏：无效值会让 data-theme 落到没有任何样式规则的取值上，整页失去配色 */
   const sysTheme=document.documentElement.dataset.theme==='light'?'light':'dark';
   applyTheme(settings.theme==='light'||settings.theme==='dark'?settings.theme:sysTheme);
-  applyAccent(ACCENTS[settings.accent]?settings.accent:'purple');
+  applyAccent(isAccent(settings.accent)?settings.accent:'purple');
   applySide(settings.side);
   updateSoundUI();
   initAiWorker();
