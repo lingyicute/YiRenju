@@ -12,7 +12,7 @@
 /* 防闪烁：样式加载前恢复主题与配色 */
 (function(){try{var s=JSON.parse(localStorage.getItem('yirenju.settings')||localStorage.getItem('yimoku.settings')||'null')||{};
 var d=document.documentElement;
-if(s.theme)d.dataset.theme=s.theme;else if(!window.matchMedia('(prefers-color-scheme: dark)').matches)d.dataset.theme='light';
+if(s.theme==='light'||s.theme==='dark')d.dataset.theme=s.theme;else if(!window.matchMedia('(prefers-color-scheme: dark)').matches)d.dataset.theme='light';
 if(s.accent)d.dataset.accent=s.accent;}catch(e){}})();
 </script>
 <style>
@@ -2263,8 +2263,10 @@ $('btnRestart').addEventListener('click',()=>{newGame();toast('已开始新对�
 
 /* ================= 初始化 ================= */
 function init(){
-  applyTheme(settings.theme||document.documentElement.dataset.theme);
-  applyAccent(settings.accent||'purple');
+  /* 存储里的主题/配色可能被改坏：无效值会让 data-theme 落到没有任何样式规则的取值上，整页失去配色 */
+  const sysTheme=document.documentElement.dataset.theme==='light'?'light':'dark';
+  applyTheme(settings.theme==='light'||settings.theme==='dark'?settings.theme:sysTheme);
+  applyAccent(ACCENTS[settings.accent]?settings.accent:'purple');
   applySide(settings.side);
   updateSoundUI();
   initAiWorker();
