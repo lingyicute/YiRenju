@@ -1873,11 +1873,11 @@ function undo(){
     recorded=false;LS.set('records',records);
   }
   if(over){over=false;winner=0;winCells=null;}
-  const n=mode==='pvp'?1:Math.min(2,history.length);
-  for(let i=0;i<n;i++){
-    const mv=history.pop();
-    setCell(mv.x,mv.y,EMPTY);
-  }
+  /* 至少撤 1 手；人机模式再撤到轮到玩家为止。固定撤 2 手会在玩家刚落下制胜子时多撤 AI 的上一手，
+     悔棋后反而轮到 AI 并让它重算。执白悔至空盘时轮到 AI 先手，由下面的 maybeAI 补一手。 */
+  const popOne=()=>{const mv=history.pop();setCell(mv.x,mv.y,EMPTY);};
+  popOne();
+  if(mode!=='pvp')while(history.length&&(history.length%2===0?BLACK:WHITE)!==humanP)popOne();
   if(history.length)startTimer();else stopTimer();
   turn=history.length%2===0?BLACK:WHITE;
   aiToken++;aiThinking=false;
