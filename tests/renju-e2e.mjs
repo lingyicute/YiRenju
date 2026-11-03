@@ -356,6 +356,26 @@ ok('Worker 报错：思考态不卡死，改由主线程落子',await page.evalu
 }));
 await page.evaluate(()=>{applySide('B');newGame(true);});
 
+/* 17. 计时按墙钟推算：定时器被节流/暂停时不少算时间 */
+ok('计时按墙钟推算且存档用时为真实值',await page.evaluate(async()=>{
+  setMode('pvp');newGame(true);placeAt(7,7,turn);
+  const real=Date.now;
+  Date.now=()=>real()+90000;             /* 模拟 90 秒内没有任何 tick */
+  await new Promise(r=>setTimeout(r,400));
+  const shown=document.getElementById('timer').textContent;
+  saveSession();
+  const saved=JSON.parse(localStorage.getItem('yirenju.session')).elapsed;
+  Date.now=real;
+  return shown==='01:30'&&saved>=90&&saved<93;
+}));
+ok('终局停表后用时不再增长',await page.evaluate(async()=>{
+  newGame(true);placeAt(7,7,1);placeAt(0,0,2);placeAt(8,7,1);placeAt(0,2,2);placeAt(9,7,1);placeAt(0,4,2);placeAt(10,7,1);placeAt(0,6,2);placeAt(11,7,1);
+  const t=elapsed;
+  await new Promise(r=>setTimeout(r,1300));
+  return over&&elapsed===t&&!timerRunning;
+}));
+await page.evaluate(()=>{closeDialog();newGame(true);});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
