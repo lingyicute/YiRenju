@@ -1836,7 +1836,7 @@ function onGameEnd(p){
 /* ================= AI Worker ================= */
 /* 自举 Worker：主脚本的 CORE_START/END 段即完整引擎，原地打包成 Blob 放副线程，
    思考期间页面不冻结；环境不支持或打包失败时静默回退主线程同步搜索。 */
-let aiWorker=null,aiWorkerUrl=null,thinkMinT=0;
+let aiWorker=null,aiWorkerUrl=null,thinkMinT=0,workerBudget=2,workerRebuild=false;
 function dropWorker(){                           /* 终止并释放 Worker；之后 maybeAI 走主线程回退或由 initAiWorker 重建 */
   if(aiWorker){try{aiWorker.terminate();}catch(e){}}
   aiWorker=null;
@@ -1877,8 +1877,10 @@ function initAiWorker(){
       if(aiWorker!==w)return;
       if(ev&&ev.preventDefault)ev.preventDefault();
       dropWorker();
+      if(workerBudget>0){workerBudget--;workerRebuild=true;}   /* 下一手重建 Worker，避免此后一直在主线程冻结界面 */
       if(aiThinking&&!over&&turn===aiP)thinkOnMain(aiToken);
     };
+    w.onmessageerror=w.onerror;                  /* 结果无法反序列化时同样没有回信 */
     aiWorker=w;aiWorkerUrl=url;
   }catch(err){dropWorker();}
 }
@@ -1890,8 +1892,14 @@ function noLegalAI(){                            /* AI 全盘无合法着法：�
 function thinkOnMain(tok){                       /* 主线程同步搜索（无 Worker 或 Worker 失效时） */
   setTimeout(()=>{
     if(aiStale(tok))return;
-    const mv=aiChoose(aiP);
+    let mv=null,failed=false;
+    try{mv=aiChoose(aiP);}catch(err){failed=true;}
     aiThinking=false;
+    if(failed){                                  /* 引擎本身抛错：不能让思考态卡死，交还给玩家悔棋或重开 */
+      updateHUD();scheduleDraw();
+      toast('AI 计算出错，请悔棋或重开');
+      return;
+    }
     if(mv)placeAt(mv.x,mv.y,aiP);
     else noLegalAI();
   },Math.max(0,thinkMinT-Date.now()));
@@ -1901,6 +1909,7 @@ function maybeAI(){
   aiThinking=true;updateHUD();scheduleDraw();
   const tok=++aiToken;
   thinkMinT=Date.now()+420+Math.random()*300;
+  if(!aiWorker&&workerRebuild){workerRebuild=false;initAiWorker();}
   if(aiWorker){
     try{
       aiWorker.postMessage({type:'choose',mode:mode,p:aiP,board:board.map(r=>r.slice()),tok:tok});
