@@ -1441,7 +1441,7 @@ $('btnTheme').addEventListener('click',()=>{
 
 /* ================= 游戏状态 ================= */
 let history=[],turn=BLACK,over=false,winner=0,winCells=null,recorded=false;
-let elapsed=0,timerId=null,timerRunning=false;
+let elapsed=0,timerId=null,timerRunning=false,timerBase=0;
 let aiThinking=false,aiToken=0;
 let foulSet=new Set(),foulSetKey=''; /* 黑方禁手点缓存（key=x*16+y） */
 function updateFoulMarkers(){
@@ -1614,12 +1614,22 @@ function fmt(t){
   const p=v=>String(v).padStart(2,'0');
   return h>0?h+':'+p(mm)+':'+p(ss):p(mm)+':'+p(ss);
 }
+/* 按墙钟时间计时：旧实现每次 tick 加 1 秒，标签页在后台被节流（Chrome 久置后约每分钟才触发一次）
+   或设备休眠时会少算大量时间。timerBase 为「本次计时起点」，elapsed 始终由当前时间推算。 */
+function syncElapsed(){
+  if(timerRunning)elapsed=Math.max(elapsed,Math.floor((Date.now()-timerBase)/1000));
+}
 function startTimer(){
   if(timerRunning)return;
   timerRunning=true;
-  timerId=setInterval(()=>{elapsed++;$('timer').textContent=fmt(elapsed);},1000);
+  timerBase=Date.now()-elapsed*1000;
+  timerId=setInterval(()=>{syncElapsed();$('timer').textContent=fmt(elapsed);},250);
 }
-function stopTimer(){timerRunning=false;clearInterval(timerId);}
+function stopTimer(){
+  syncElapsed();
+  timerRunning=false;clearInterval(timerId);
+  $('timer').textContent=fmt(elapsed);
+}
 
 /* ================= HUD ================= */
 /* 屏幕阅读器状态播报：canvas 本身不提供棋盘语义，用 aria-live 区域
@@ -1685,6 +1695,7 @@ function updateHUD(){
 
 /* ================= 存档 ================= */
 function saveSession(){
+  syncElapsed();            /* 存档里的用时要是此刻的真实值，而不是上一次 tick 的值 */
   if(!history.length){LS.set('session',null);return;}
   LS.set('session',{mode,moves:history.map(m=>({x:m.x,y:m.y})),elapsed,over,side:humanP===BLACK?'B':'W'});
 }
