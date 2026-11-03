@@ -284,6 +284,25 @@ ok('配色弹窗自动聚焦当前色块且关闭后归还焦点至棋盘',await
   return focusedInDlg&&document.activeElement===document.getElementById('board');
 }));
 
+/* 14. 仅主键落子；长按 Z / R 不连发 */
+await page.evaluate(()=>{closeDialog();setMode('pvp');newGame();});
+{
+  const pt=await page.evaluate(()=>{const G=geom(),r=document.getElementById('board').getBoundingClientRect();
+    return {px:r.left+G.m+7*G.g,py:r.top+G.m+7*G.g};});
+  await page.mouse.click(pt.px,pt.py,{button:'right'});
+  await page.mouse.click(pt.px,pt.py,{button:'middle'});
+  await page.waitForTimeout(80);
+  ok('右键/中键不落子',(await histLen())===0,'len='+(await histLen()));
+  await page.mouse.click(pt.px,pt.py);
+  ok('左键仍可落子',(await histLen())===1);
+}
+await page.evaluate(()=>{newGame();placeAt(7,7,turn);placeAt(8,8,turn);placeAt(9,9,turn);});
+await page.locator('#board').focus();
+await page.keyboard.down('z');await page.keyboard.down('z');await page.keyboard.down('z');await page.keyboard.up('z');
+ok('长按 Z 只悔一手',(await histLen())===2,'len='+(await histLen()));
+await page.keyboard.down('r');await page.keyboard.down('r');await page.keyboard.up('r');
+ok('长按 R 只重开一次',(await histLen())===0&&await page.evaluate(()=>!over));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);

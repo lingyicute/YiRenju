@@ -2137,6 +2137,7 @@ canvas.addEventListener('pointerdown',e=>{
     touchTap=touchTap?null:{x0:e.clientX,y0:e.clientY,id:e.pointerId};
     return;
   }
+  if(e.button!==0)return;   /* 右键/中键不落子（右键菜单已被屏蔽，仍会触发 pointerdown） */
   e.preventDefault();
   canvas.focus({preventScroll:true});
   tryPlaceFromEvent(e);
@@ -2216,8 +2217,9 @@ document.addEventListener('keydown',e=>{
     if(!over&&!dialogOpenFlag){kbdCursor=true;hover=null;scheduleDraw();} /* 键盘落子或禁手拒落后保留光标 */
     return;
   }
-  if(k==='z'||k==='Z'){undo();return;}
-  if(k==='r'||k==='R'){newGame();toast('已开始新对局');return;}
+  /* 长按会连发 keydown：悔棋/重开只响应首次按下，避免一次长按连续悔掉多手或反复重开 */
+  if(k==='z'||k==='Z'){if(!e.repeat)undo();return;}
+  if(k==='r'||k==='R'){if(!e.repeat){newGame();toast('已开始新对局');}return;}
 });
 $('btnUndo').addEventListener('click',undo);
 $('btnRestart').addEventListener('click',()=>{newGame();toast('已开始新对局');});
