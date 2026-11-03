@@ -376,6 +376,16 @@ ok('终局停表后用时不再增长',await page.evaluate(async()=>{
 }));
 await page.evaluate(()=>{closeDialog();newGame(true);});
 
+/* 18. 存储中的主题/配色无效时回落到合法值 */
+await page.evaluate(()=>{history.length=0;localStorage.setItem('yirenju.settings',JSON.stringify({theme:'foo',accent:'bar'}));});
+await page.reload();await page.waitForTimeout(250);
+ok('无效主题/配色回落到合法值',await page.evaluate(()=>{
+  const d=document.documentElement.dataset;
+  return (d.theme==='dark'||d.theme==='light')&&d.accent==='purple'
+    &&['dark','light'].includes(JSON.parse(localStorage.getItem('yirenju.settings')).theme);
+}));
+await page.evaluate(()=>{history.length=0;localStorage.clear();});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
