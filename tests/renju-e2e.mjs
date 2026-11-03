@@ -303,6 +303,25 @@ ok('长按 Z 只悔一手',(await histLen())===2,'len='+(await histLen()));
 await page.keyboard.down('r');await page.keyboard.down('r');await page.keyboard.up('r');
 ok('长按 R 只重开一次',(await histLen())===0&&await page.evaluate(()=>!over));
 
+/* 15. 悔棋后必须轮到玩家 */
+ok('人机：玩家制胜后悔棋只撤自己那手并回到玩家回合',await page.evaluate(()=>{
+  setMode('ai-easy');applySide('B');newGame(true);
+  const seq=[[3,3],[3,10],[4,3],[4,10],[5,3],[5,10],[6,3],[6,10],[7,3]];
+  seq.forEach((m,i)=>placeAt(m[0],m[1],i%2?WHITE:BLACK));
+  const wasOver=over&&winner===BLACK;
+  undo();
+  return wasOver&&!over&&history.length===8&&turn===BLACK&&!aiThinking;
+}));
+ok('人机：AI 获胜后悔棋撤两手并回到玩家回合',await page.evaluate(()=>{
+  newGame(true);
+  const seq=[[0,0],[3,10],[0,2],[4,10],[0,4],[5,10],[0,6],[6,10],[0,8],[7,10]];
+  seq.forEach((m,i)=>placeAt(m[0],m[1],i%2?WHITE:BLACK));
+  const wasOver=over&&winner===WHITE;
+  undo();
+  return wasOver&&!over&&history.length===8&&turn===BLACK&&!aiThinking;
+}));
+await page.evaluate(()=>{newGame(true);});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
