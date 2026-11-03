@@ -322,6 +322,40 @@ ok('人机：AI 获胜后悔棋撤两手并回到玩家回合',await page.evalua
 }));
 await page.evaluate(()=>{newGame(true);});
 
+/* 16. AI 线程健壮性：过期回调不覆盖新思考态、重开换新 Worker、Worker 报错回退主线程 */
+await page.evaluate(()=>{closeDialog();setMode('ai-easy');applySide('W');});
+ok('主线程回退：重开后旧回调到点不清掉新一局的思考态',await page.evaluate(async()=>{
+  dropWorker();
+  const rnd=Math.random;
+  Math.random=()=>0;newGame();          /* 旧回调约 420ms 触发 */
+  Math.random=()=>0.99;newGame();       /* 新回调约 720ms 触发 */
+  Math.random=rnd;
+  await new Promise(r=>setTimeout(r,550));
+  const still=aiThinking===true&&history.length===0;
+  await new Promise(r=>setTimeout(r,500));
+  initAiWorker();
+  return still&&history.length===1&&!aiThinking;
+}));
+ok('思考中重开会换新的 Worker',await page.evaluate(()=>{
+  newGame(true);
+  const w0=aiWorker;newGame();           /* AI 先手：进入思考 */
+  const thinking=aiThinking;newGame();   /* 思考中再次重开 */
+  return !!w0&&thinking&&aiWorker!==null&&aiWorker!==w0;
+}));
+await page.waitForFunction(()=>history.length===1&&!aiThinking,{timeout:6000});
+ok('换 Worker 后 AI 仍能正常开局',true);
+await page.evaluate(()=>{newGame();});
+ok('Worker 报错：思考态不卡死，改由主线程落子',await page.evaluate(async()=>{
+  const thinking=aiThinking,w=aiWorker;
+  w.onerror({preventDefault(){}});
+  const dropped=aiWorker===null;
+  await new Promise(r=>setTimeout(r,1200));
+  const done=history.length===1&&!aiThinking;
+  initAiWorker();
+  return thinking&&dropped&&done;
+}));
+await page.evaluate(()=>{applySide('B');newGame(true);});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
