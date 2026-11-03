@@ -1769,6 +1769,8 @@ function updateSoundUI(){
 /* ================= 对局流程 ================= */
 function newGame(silent){
   clearBoard();
+  /* 重开时旧搜索仍占着 Worker（专家档最长 3 秒），新一局的第一手会排在它后面白等；直接换一个新 Worker */
+  if(aiThinking&&aiWorker){dropWorker();initAiWorker();}
   history=[];turn=BLACK;over=false;winner=0;winCells=null;recorded=false;
   aiThinking=false;aiToken++;hover=null;kbdCursor=false;
   stopTimer();elapsed=0;$('timer').textContent='00:00';
@@ -1815,7 +1817,19 @@ function onGameEnd(p){
 /* ================= AI Worker ================= */
 /* 自举 Worker：主脚本的 CORE_START/END 段即完整引擎，原地打包成 Blob 放副线程，
    思考期间页面不冻结；环境不支持或打包失败时静默回退主线程同步搜索。 */
-let aiWorker=null,thinkMinT=0;
+let aiWorker=null,aiWorkerUrl=null,thinkMinT=0;
+function dropWorker(){                           /* 终止并释放 Worker；之后 maybeAI 走主线程回退或由 initAiWorker 重建 */
+  if(aiWorker){try{aiWorker.terminate();}catch(e){}}
+  aiWorker=null;
+  if(aiWorkerUrl){try{URL.revokeObjectURL(aiWorkerUrl);}catch(e){}aiWorkerUrl=null;}
+}
+/* 迟到/失效的 AI 回调：tok 已被重开、悔棋或终局接管时，思考态归新的持有者，旧回调不得改写；
+   仍是当前 tok 但局面已不再轮到 AI，则只负责收起思考态。返回 true 表示应丢弃本次结果。 */
+function aiStale(tok){
+  if(tok!==aiToken)return true;
+  if(over||turn!==aiP){aiThinking=false;updateHUD();return true;}
+  return false;
+}
 function initAiWorker(){
   if(typeof Worker==='undefined'||typeof Blob==='undefined'||typeof URL==='undefined')return;
   try{
@@ -1825,25 +1839,43 @@ function initAiWorker(){
     if(a<0||b<0||b<a)return;
     const wsrc=src.slice(a,b)
       +'\nself.onmessage=function(e){var d=e.data;if(d&&d.type==="choose"){mode=d.mode;board=d.board;syncCand();self.postMessage({tok:d.tok,mv:aiChoose(d.p)});}};';
-    const w=new Worker(URL.createObjectURL(new Blob([wsrc],{type:'text/javascript'})));
+    const url=URL.createObjectURL(new Blob([wsrc],{type:'text/javascript'}));
+    const w=new Worker(url);
     w.onmessage=function(e){
       const d=e.data;
       if(!d||d.tok!==aiToken)return;             /* 悔棋/重开/切换后到达的迟到结果 */
       const wait=Math.max(0,thinkMinT-Date.now());
       setTimeout(()=>{
-        if(d.tok!==aiToken||over||turn!==aiP){aiThinking=false;updateHUD();return;} /* P0：与主线程回退路径对齐，失效结果不得留下卡死的思考态 */
+        if(aiStale(d.tok))return;                /* P0：与主线程回退路径对齐，失效结果不得留下卡死的思考态 */
         aiThinking=false;
         if(d.mv)placeAt(d.mv.x,d.mv.y,aiP);
         else noLegalAI();
       },wait);
     };
-    aiWorker=w;
-  }catch(err){aiWorker=null;}
+    /* Worker 内部抛错或脚本加载失败时没有任何回信，思考态会永远卡住（悔棋被禁用、AI 不再落子）：
+       丢弃 Worker 并把正在进行的这一手改由主线程完成，之后的对局也一直走主线程回退。 */
+    w.onerror=function(ev){
+      if(aiWorker!==w)return;
+      if(ev&&ev.preventDefault)ev.preventDefault();
+      dropWorker();
+      if(aiThinking&&!over&&turn===aiP)thinkOnMain(aiToken);
+    };
+    aiWorker=w;aiWorkerUrl=url;
+  }catch(err){dropWorker();}
 }
 function noLegalAI(){                            /* AI 全盘无合法着法：按连珠规则判负 */
   over=true;winner=humanP;stopTimer();
   onGameEnd(humanP);
   updateHUD();saveSession();scheduleDraw();
+}
+function thinkOnMain(tok){                       /* 主线程同步搜索（无 Worker 或 Worker 失效时） */
+  setTimeout(()=>{
+    if(aiStale(tok))return;
+    const mv=aiChoose(aiP);
+    aiThinking=false;
+    if(mv)placeAt(mv.x,mv.y,aiP);
+    else noLegalAI();
+  },Math.max(0,thinkMinT-Date.now()));
 }
 function maybeAI(){
   if(over||mode==='pvp'||turn!==aiP)return;
@@ -1854,15 +1886,9 @@ function maybeAI(){
     try{
       aiWorker.postMessage({type:'choose',mode:mode,p:aiP,board:board.map(r=>r.slice()),tok:tok});
       return;
-    }catch(err){aiWorker=null;}                    /* 投递失败立刻回退主线程 */
+    }catch(err){dropWorker();}                     /* 投递失败立刻回退主线程 */
   }
-  setTimeout(()=>{
-    if(tok!==aiToken||over||turn!==aiP){aiThinking=false;updateHUD();return;}
-    const mv=aiChoose(aiP);
-    aiThinking=false;
-    if(mv)placeAt(mv.x,mv.y,aiP);
-    else noLegalAI();
-  },Math.max(0,thinkMinT-Date.now()));
+  thinkOnMain(tok);
 }
 function undo(){
   if(aiThinking||!history.length)return;
