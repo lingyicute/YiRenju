@@ -1443,7 +1443,7 @@ $('btnTheme').addEventListener('click',()=>{
 
 /* ================= 游戏状态 ================= */
 let history=[],turn=BLACK,over=false,winner=0,winCells=null,recorded=false;
-let elapsed=0,timerId=null,timerRunning=false,timerBase=0;
+let elapsed=0,timerId=null,timerRunning=false,timerLast=0,timerFrac=0;
 let aiThinking=false,aiToken=0;
 let foulSet=new Set(),foulSetKey=''; /* 黑方禁手点缓存（key=x*16+y） */
 function updateFoulMarkers(){
@@ -1617,14 +1617,20 @@ function fmt(t){
   return h>0?h+':'+p(mm)+':'+p(ss):p(mm)+':'+p(ss);
 }
 /* 按墙钟时间计时：旧实现每次 tick 加 1 秒，标签页在后台被节流（Chrome 久置后约每分钟才触发一次）
-   或设备休眠时会少算大量时间。timerBase 为「本次计时起点」，elapsed 始终由当前时间推算。 */
+   会少算大量时间。改为累加相邻两次同步之间的墙钟间隔，并做两处保护：
+   时钟回拨（间隔为负）记 0，不会停表；单次间隔最多记 5 分钟，设备休眠或标签页长期后台不计入对局用时。 */
+const TIMER_GAP_CAP=300000;
 function syncElapsed(){
-  if(timerRunning)elapsed=Math.max(elapsed,Math.floor((Date.now()-timerBase)/1000));
+  if(!timerRunning)return;
+  const now=Date.now();
+  timerFrac+=Math.min(Math.max(0,now-timerLast),TIMER_GAP_CAP);
+  timerLast=now;
+  if(timerFrac>=1000){const sec=Math.floor(timerFrac/1000);elapsed+=sec;timerFrac-=sec*1000;}
 }
 function startTimer(){
   if(timerRunning)return;
   timerRunning=true;
-  timerBase=Date.now()-elapsed*1000;
+  timerLast=Date.now();
   timerId=setInterval(()=>{syncElapsed();$('timer').textContent=fmt(elapsed);},250);
 }
 function stopTimer(){
@@ -1786,7 +1792,7 @@ function newGame(silent){
   if(aiThinking&&aiWorker){dropWorker();initAiWorker();}
   history=[];turn=BLACK;over=false;winner=0;winCells=null;recorded=false;
   aiThinking=false;aiToken++;hover=null;kbdCursor=false;
-  stopTimer();elapsed=0;$('timer').textContent='00:00';
+  stopTimer();elapsed=0;timerFrac=0;$('timer').textContent='00:00';
   LS.set('session',null);
   updateHUD();scheduleDraw();
   if(!silent){
@@ -2296,7 +2302,7 @@ function init(){
       }
       turn=history.length%2===0?BLACK:WHITE;
       aiToken++;aiThinking=false;
-      elapsed=Math.max(0,ses.elapsed|0);
+      elapsed=Math.max(0,ses.elapsed|0);timerFrac=0;
       $('timer').textContent=fmt(elapsed);
       if(history.length)startTimer();
       updateHUD();saveSession();scheduleDraw();
