@@ -94,6 +94,7 @@ body{
   font-family:var(--font);
   background:radial-gradient(1100px 520px at 72% -8%,var(--glow),transparent 62%),var(--bg);
   color:var(--on-surface);
+  min-height:100vh;
   min-height:100dvh;
   user-select:none;
   transition:background .3s,color .3s;
@@ -176,7 +177,7 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;animation:fade .15s ease-out}
 .scrim[hidden]{display:none}
 @keyframes fade{from{opacity:0}}
-.dialog{width:100%;max-width:440px;max-height:calc(100dvh - 64px);overflow:auto;background:var(--float);border-radius:28px;
+.dialog{width:100%;max-width:440px;max-height:calc(100vh - 64px);max-height:calc(100dvh - 64px);overflow:auto;background:var(--float);border-radius:28px;
   padding:28px 26px;box-shadow:var(--shadow);animation:up .2s ease-out}
 @keyframes up{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
 .dlg-icon{width:54px;height:54px;border-radius:17px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;
@@ -211,6 +212,18 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
   box-shadow:var(--shadow);padding:11px 22px;border-radius:999px;font-size:14px;font-weight:700;opacity:0;pointer-events:none;
   text-align:center;transition:opacity .25s,transform .25s;z-index:200}
 .toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* 旧版浏览器（Chrome < 111 等）不支持 color-mix()：上面的变量会整体失效，背景全部透明。
+   此处回退为按默认紫色预先算好的静态色值（强调色仍由 --acc / --primary 生效）。 */
+@supports not (color:color-mix(in srgb,red 50%,blue)){
+  html[data-theme="light"]{--bg:#f4f0fe;--glow:rgba(167,139,250,.16);--on-surface-2:#615a72;--container:#ece6fb;--container-high:#dcd0fc;--float:#f8f6ff;--tonal:#e8e4f3;--outline:#7f7892;--board-bg:#eee8fe;--grid-line:rgba(55,48,74,.42);--grid-strong:rgba(55,48,74,.62);--stone-wst:rgba(111,104,128,.45)}
+  html[data-theme="dark"]{--bg:#161220;--glow:rgba(167,139,250,.12);--on-surface-2:rgba(163,154,183,.78);--container:#2a253c;--container-high:#574882;--float:#362e4a;--tonal:#352f47;--pcontainer:#57459e;--outline:#786e94;--board-bg:#2b243e;--grid-line:rgba(239,234,250,.3);--grid-strong:rgba(239,234,250,.52);--stone-wst:rgba(59,51,80,.55)}
+  .app-icon{background:var(--primary)}
+  html[data-theme="dark"] .app-icon{background:var(--acc)}
+  .icon-btn:hover{background:var(--container)}
+  #board{filter:drop-shadow(0 12px 30px rgba(0,0,0,.18))}
+  .rec-row{border-top-color:rgba(128,128,140,.3)}
+}
 
 /* 仅屏幕阅读器可见：状态播报与棋盘说明 */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;

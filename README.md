@@ -141,7 +141,7 @@ Host the repository as a static site with GitHub Pages, Cloudflare Pages, Netlif
 
 ### Requirements
 
-- **Browser:** a current version of Chrome, Edge, Firefox, or Safari. The stylesheet uses CSS `color-mix()`.
+- **Browser:** a current version of Chrome, Edge, Firefox, or Safari. Older browsers without CSS `color-mix()` (e.g. Chrome < 111) fall back to static colors for the default purple accent.
 - **Network:** not required to play. It is only needed to download the file.
 - **Storage:** `localStorage` keeps your settings, records, and unfinished game. The game still works without it.
 - **Permissions:** none.
