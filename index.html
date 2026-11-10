@@ -2281,6 +2281,9 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(k==='Enter'||k===' '){
+    /* 键盘光标不可见时（刚点过鼠标/触屏、刚聚焦棋盘）第一下只显示并播报光标：
+       否则会在看不见的旧光标处盲落一子。 */
+    if(!kbdCursor&&!over){kbdCursor=true;hover=null;scheduleDraw();announceCursor();return;}
     tryHumanPlace({x:cursor.x,y:cursor.y});
     if(!over&&!dialogOpenFlag){kbdCursor=true;hover=null;scheduleDraw();} /* 键盘落子或禁手拒落后保留光标 */
     return;
