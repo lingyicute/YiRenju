@@ -73,7 +73,7 @@ await page.keyboard.press('Space');
 await page.waitForTimeout(80);
 ok('Space 在菜单项上打开规则对话框而不落子',(await histLen())===0&&(await dlgText()).includes('规则说明'));
 await page.keyboard.press('Escape');
-await page.evaluate(()=>{closeDialog();menu.classList.remove('open');cursor={x:7,y:7};kbdCursor=false;newGame();});
+await page.evaluate(()=>{closeDialog();setMenuOpen(false);cursor={x:7,y:7};kbdCursor=false;newGame();});
 await page.locator('#board').focus();
 await page.keyboard.press('ArrowRight');
 ok('棋盘可聚焦且方向键移动光标',await page.evaluate(()=>cursor.x===8&&cursor.y===7&&kbdCursor));
@@ -310,6 +310,15 @@ ok('theme-color 跟随手动切换的主题与配色，并与页面背景同色'
   const dark=synced();
   probe.remove();
   return light&&dark;
+}));
+ok('菜单按钮的 aria-expanded 随开合同步',await page.evaluate(()=>{
+  const b=document.getElementById('btnMenu'),st=()=>b.getAttribute('aria-expanded')+'/'+menu.classList.contains('open');
+  const seq=[st()];
+  b.click();seq.push(st());                 /* 展开 */
+  document.body.click();seq.push(st());     /* 点菜单外收起 */
+  b.click();document.querySelector('.menu-item[data-act="help"]').click();seq.push(st());   /* 选中菜单项收起 */
+  closeDialog();
+  return seq.join(' ')==='false/false true/true false/false false/false';
 }));
 
 /* 14. 仅主键落子；长按 Z / R 不连发 */
