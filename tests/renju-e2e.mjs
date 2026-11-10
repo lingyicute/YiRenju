@@ -283,6 +283,17 @@ ok('配色弹窗自动聚焦当前色块且关闭后归还焦点至棋盘',await
   closeDialog();applyAccent('purple');
   return focusedInDlg&&document.activeElement===document.getElementById('board');
 }));
+ok('新弹窗从顶部开始，不沿用上一个弹窗的滚动位置',await page.evaluate(async()=>{
+  dialog.style.maxHeight='160px';      /* 桌面视口下内容放得下，压低高度上限以制造滚动 */
+  showHelp();dialog.scrollTop=9999;
+  const scrolled=dialog.scrollTop>0;
+  closeDialog();
+  await new Promise(r=>setTimeout(r,50));
+  showWhatIsRenju();
+  const top=dialog.scrollTop;
+  closeDialog();dialog.style.maxHeight='';
+  return scrolled&&top===0;
+}));
 
 /* 14. 仅主键落子；长按 Z / R 不连发 */
 await page.evaluate(()=>{closeDialog();setMode('pvp');newGame();});
