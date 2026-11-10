@@ -1962,7 +1962,12 @@ function undo(){
   const popOne=()=>{const mv=history.pop();setCell(mv.x,mv.y,EMPTY);};
   popOne();
   if(mode!=='pvp')while(history.length&&(history.length%2===0?BLACK:WHITE)!==humanP)popOne();
-  if(history.length)startTimer();else stopTimer();
+  if(history.length)startTimer();
+  else{
+    stopTimer();
+    /* 悔到空盘相当于回到开局：旧用时和不足一秒的余量都不能带进下一手。 */
+    elapsed=0;timerFrac=0;$('timer').textContent=fmt(elapsed);
+  }
   turn=history.length%2===0?BLACK:WHITE;
   aiToken++;aiThinking=false;
   updateHUD();saveSession();scheduleDraw();

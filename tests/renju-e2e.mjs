@@ -383,6 +383,17 @@ ok('计时按墙钟推算且存档用时为真实值',await page.evaluate(async(
   Date.now=real;
   return shown==='01:30'&&saved>=90&&saved<93;
 }));
+ok('悔至空盘后用时归零，新落子不继承旧计时',await page.evaluate(()=>{
+  setMode('pvp');newGame(true);placeAt(7,7,turn);
+  timerLast-=91000;           /* 模拟停在第一手 91 秒后悔棋，无需真的等待 */
+  undo();
+  const reset=history.length===0&&!timerRunning&&elapsed===0&&timerFrac===0
+    &&document.getElementById('timer').textContent==='00:00';
+  placeAt(7,7,turn);
+  const saved=JSON.parse(localStorage.getItem('yirenju.session'));
+  return reset&&elapsed===0&&document.getElementById('timer').textContent==='00:00'
+    &&saved.elapsed===0;
+}));
 ok('终局停表后用时不再增长',await page.evaluate(async()=>{
   newGame(true);placeAt(7,7,1);placeAt(0,0,2);placeAt(8,7,1);placeAt(0,2,2);placeAt(9,7,1);placeAt(0,4,2);placeAt(10,7,1);placeAt(0,6,2);placeAt(11,7,1);
   const t=elapsed;
