@@ -1981,6 +1981,7 @@ let dialogOpenFlag=false,dlgFocusTid=0;
 function openDialog(html){
   dialog.innerHTML=html;
   scrim.hidden=false;dialogOpenFlag=true;
+  dialog.scrollTop=0;   /* 弹窗容器是复用的：不归零会沿用上一个弹窗滚到的位置，小屏上新弹窗的标题被卷出视野 */
   clearTimeout(dlgFocusTid);
   /* 选择器列表按文档顺序取首个匹配：'.swatch.sel,button' 恒为弹窗里的第一个按钮（首个色块），当前色块须单独优先查 */
   const b=dialog.querySelector('.btn-pill.primary')||dialog.querySelector('.swatch.sel')||dialog.querySelector('button');
