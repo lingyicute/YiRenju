@@ -4,8 +4,10 @@
  * 3. 主脚本不引用网络 API / 远程 CSS；
  * 4. CORE_START/CORE_END 圈出的引擎段是纯逻辑（Worker 安全），
  *    APP_START/APP_END 与 CORE 标记顺序正确，且产品文件不含测试代码。
+ * 5. 内嵌字体子集覆盖页面全部可渲染汉字（改了文案却没重跑 scripts/subset_font.py 时报错）。
  */
 import { readFileSync } from 'fs';
+import { brotliDecompressSync } from 'zlib';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const fail = [];
 const check = (ok, msg) => { if (!ok) fail.push(msg); };
@@ -50,9 +52,68 @@ if (main) {
   check(!/function\s+oracle\s*\(|describe\s*\(|node:test/.test(src), '产品 HTML 混入了测试代码');
 }
 
+/* ---- 5. 内嵌字体子集的字形覆盖 ----
+   文案新增的字若不在子集里，会悄悄回退到系统字体，肉眼很难发现。
+   WOFF2 = 表目录 + 一段 Brotli 流；cmap 不做变换，解压后按目录顺序切出来即可，不必引入字体库。 */
+function woff2Codepoints(buf) {
+  if (buf.toString('latin1', 0, 4) !== 'wOF2') throw new Error('不是 WOFF2');
+  const numTables = buf.readUInt16BE(12), compLen = buf.readUInt32BE(20);
+  let p = 48;                                            /* 定长文件头之后是表目录 */
+  const base128 = () => { let v = 0; for (;;) { const c = buf[p++]; v = v * 128 + (c & 127); if (!(c & 128)) return v; } };
+  const tables = [];
+  for (let i = 0; i < numTables; i++) {
+    const flags = buf[p++], known = flags & 63, ver = flags >> 6;
+    if (known === 63) p += 4;                            /* 非常见表：后跟 4 字节 tag */
+    const origLen = base128();
+    /* glyf(10)/loca(11) 的变换版本 0 表示“已变换”，其余表非 0 才是；已变换的表另带变换后长度 */
+    const transformed = (known === 10 || known === 11) ? ver === 0 : ver !== 0;
+    tables.push({ cmap: known === 0, len: transformed ? base128() : origLen });
+  }
+  const data = brotliDecompressSync(buf.subarray(p, p + compLen));
+  let off = 0, cmap = null;
+  for (const t of tables) { if (t.cmap) { cmap = data.subarray(off, off + t.len); break; } off += t.len; }
+  if (!cmap) throw new Error('缺少 cmap 表');
+  const set = new Set();
+  for (let i = 0, n = cmap.readUInt16BE(2); i < n; i++) {
+    const o = cmap.readUInt32BE(8 + i * 8), fmt = cmap.readUInt16BE(o);
+    if (fmt === 4) {                                     /* BMP 分段映射 */
+      const seg = cmap.readUInt16BE(o + 6) >> 1, end = o + 14, start = end + seg * 2 + 2, delta = start + seg * 2, range = delta + seg * 2;
+      for (let s = 0; s < seg; s++) {
+        const a = cmap.readUInt16BE(start + s * 2), z = cmap.readUInt16BE(end + s * 2), ro = cmap.readUInt16BE(range + s * 2);
+        for (let c = a; c <= z && c < 0xFFFF; c++) {
+          const g = ro ? cmap.readUInt16BE(range + s * 2 + ro + (c - a) * 2) : (c + cmap.readUInt16BE(delta + s * 2)) & 0xFFFF;
+          if (g) set.add(c);
+        }
+      }
+    } else if (fmt === 12) {                             /* 全 Unicode 分组映射 */
+      for (let g = 0, groups = cmap.readUInt32BE(o + 12); g < groups; g++) {
+        const a = cmap.readUInt32BE(o + 16 + g * 12), z = cmap.readUInt32BE(o + 20 + g * 12);
+        for (let c = a; c <= z; c++) set.add(c);
+      }
+    }
+  }
+  return set;
+}
+let glyphs = 0;
+const fontB64 = (html.match(/@font-face\s*\{[^}]*?base64,([A-Za-z0-9+/=]+)/) || [])[1];
+check(!!fontB64, '缺少内嵌字体（@font-face 的 base64 数据）');
+if (fontB64) {
+  /* 与 scripts/subset_font.py 的 strip_non_render_text 同一口径：去掉 HTML 注释、<style>、脚本注释 */
+  const text = html.replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gi, (m, js) =>
+      js.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(?:^|(?<=[;{}\s]))\/\/.*$/gm, ' '));
+  try {
+    const have = woff2Codepoints(Buffer.from(fontB64, 'base64'));
+    glyphs = have.size;
+    const missing = [...new Set(text)].filter(ch => /[\u4e00-\u9fff]/.test(ch) && !have.has(ch.codePointAt(0))).sort();
+    check(missing.length === 0, `内嵌字体子集缺少界面用字「${missing.join('')}」（改动文案后需重跑 scripts/subset_font.py）`);
+  } catch (e) { check(false, '内嵌字体无法解析：' + e.message); }
+}
+
 if (fail.length) {
   console.error('offline-contract: FAIL');
   for (const f of fail) console.error('  x ' + f);
   process.exit(1);
 }
-console.log(`offline-contract: PASS (${refs.length} 个 src/href 引用，全部内联)`);
+console.log(`offline-contract: PASS (${refs.length} 个 src/href 引用，全部内联；内嵌字体 ${glyphs} 个字形覆盖全部界面汉字)`);
