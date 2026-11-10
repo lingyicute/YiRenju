@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-178%20KiB-blue" alt="Self-contained HTML, approximately 178 KiB"></a>
+  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-185%20KiB-blue" alt="Self-contained HTML, approximately 185 KiB"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Runtime%20Setup-None-brightgreen" alt="No runtime setup"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Network%20Requests-Zero-brightgreen" alt="Zero network requests"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/github/stars/lingyicute/YiRenju?style=flat&color=yellow" alt="GitHub Stars"></a>
@@ -182,6 +182,9 @@ node tests/offline-contract.mjs
 
 # Rule engine & AI unit tests — 70 assertions, zero dependencies
 node tests/renju-core-test.mjs
+
+# Transposition-table regression — win/loss scores must not drift when the table is reused
+node tests/tt-mate-regression-test.mjs
 
 # Search control regressions (abort/root/guard) — 6 cases, frozen clock, zero dependencies
 node tests/ai-search-regression.mjs
