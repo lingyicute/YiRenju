@@ -366,6 +366,15 @@ for(const [w,h] of [[360,740],[1280,900]]){
     return worst;
   });
   ok('回合状态文字不被卡片截断（视口宽 '+w+'）',clip<=0,'clip='+clip+'px');
+  if(w===360){
+    ok('窄屏下 toast 不被挤成半屏宽而折行',await page.evaluate(()=>{
+      const t=document.getElementById('toast');
+      toast('记录已清除');const oneLine=t.offsetHeight;
+      toast('禁手：三三禁手，此处不可落子');
+      const r=t.getBoundingClientRect();
+      return t.offsetHeight===oneLine&&r.left>=0&&r.right<=360;
+    }));
+  }
 }
 
 /* 14. 仅主键落子；长按 Z / R 不连发 */
