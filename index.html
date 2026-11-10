@@ -1982,7 +1982,8 @@ function openDialog(html){
   dialog.innerHTML=html;
   scrim.hidden=false;dialogOpenFlag=true;
   clearTimeout(dlgFocusTid);
-  const b=dialog.querySelector('.btn-pill.primary')||dialog.querySelector('.swatch.sel,button');
+  /* 选择器列表按文档顺序取首个匹配：'.swatch.sel,button' 恒为弹窗里的第一个按钮（首个色块），当前色块须单独优先查 */
+  const b=dialog.querySelector('.btn-pill.primary')||dialog.querySelector('.swatch.sel')||dialog.querySelector('button');
   if(b)dlgFocusTid=setTimeout(()=>b.focus(),30);
 }
 function closeDialog(){

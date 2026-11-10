@@ -277,10 +277,10 @@ ok('终局后 750ms 内重开不会弹出过期结算窗',await page.evaluate(as
   return !dialogOpenFlag&&scrim.hidden===true;
 }));
 ok('配色弹窗自动聚焦当前色块且关闭后归还焦点至棋盘',await page.evaluate(async()=>{
-  showPalette();
+  applyAccent('green');showPalette();   /* 选非首个色块：焦点若落到第一个按钮（紫色）即为回归 */
   await new Promise(r=>setTimeout(r,60));
-  const focusedInDlg=document.activeElement&&document.activeElement.classList.contains('swatch');
-  closeDialog();
+  const focusedInDlg=document.activeElement&&document.activeElement.dataset.accent==='green';
+  closeDialog();applyAccent('purple');
   return focusedInDlg&&document.activeElement===document.getElementById('board');
 }));
 
