@@ -343,6 +343,15 @@ ok('聚焦主按钮不会把超出一屏的弹窗滚到底部',await page.evalua
   closeDialog();dialog.style.maxHeight='';
   return focused&&top===0;
 }));
+/* 横屏手机（宽度不到两栏断点、高度很小）：棋盘必须能整盘放进一屏 */
+await page.setViewportSize({width:740,height:360});
+await page.waitForTimeout(250);
+{
+  const h=await page.evaluate(()=>document.getElementById('board').getBoundingClientRect().height);
+  ok('横屏窄视口下棋盘不高于视口',h>=240&&h<=360,'h='+h);
+}
+await page.setViewportSize({width:1280,height:900});
+await page.waitForTimeout(250);
 
 /* 14. 仅主键落子；长按 Z / R 不连发 */
 await page.evaluate(()=>{closeDialog();setMode('pvp');newGame();});
