@@ -96,6 +96,7 @@ body{
   color:var(--on-surface);
   min-height:100vh;
   min-height:100dvh;
+  -webkit-user-select:none;   /* 照顾只认带前缀写法的 Safari / iOS：缺了它长按或拖拽会选中界面文字 */
   user-select:none;
   transition:background .3s,color .3s;
 }
