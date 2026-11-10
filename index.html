@@ -1433,7 +1433,7 @@ function aiChoose(p){
 /* ================= 主题与配色 ================= */
 const settings=Object.assign({theme:null,accent:'purple',mode:'ai-easy',side:'B',sound:true},LS.get('settings',{}));
 mode=MODES_OK(settings.mode)?settings.mode:'ai-easy';
-function MODES_OK(m){return m in MODE_LABEL;}
+function MODES_OK(m){return Object.prototype.hasOwnProperty.call(MODE_LABEL,m);}
 /* 执子：humanP 为玩家执子，aiP 为 AI 执子（aiP=3-humanP） */
 let humanP=settings.side==='W'?WHITE:BLACK,aiP=3-humanP;
 function DEFREC(){return {easy:{w:0,l:0},medium:{w:0,l:0},hard:{w:0,l:0},expert:{w:0,l:0}};}
@@ -1872,6 +1872,7 @@ function initAiWorker(){
     const wsrc=src.slice(a,b)
       +'\nself.onmessage=function(e){var d=e.data;if(d&&d.type==="choose"){mode=d.mode;board=d.board;syncCand();self.postMessage({tok:d.tok,mv:aiChoose(d.p)});}};';
     const url=URL.createObjectURL(new Blob([wsrc],{type:'text/javascript'}));
+    aiWorkerUrl=url; /* Worker 构造被 CSP 等拒绝时，catch 里的 dropWorker 也能撤销 URL */
     const w=new Worker(url);
     w.onmessage=function(e){
       const d=e.data;
@@ -1894,7 +1895,7 @@ function initAiWorker(){
       if(aiThinking&&!over&&turn===aiP)thinkOnMain(aiToken);
     };
     w.onmessageerror=w.onerror;                  /* 结果无法反序列化时同样没有回信 */
-    aiWorker=w;aiWorkerUrl=url;
+    aiWorker=w;
   }catch(err){dropWorker();}
 }
 function noLegalAI(){                            /* AI 全盘无合法着法：按连珠规则判负 */

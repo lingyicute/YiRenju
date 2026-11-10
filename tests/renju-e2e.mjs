@@ -355,6 +355,21 @@ ok('Worker 报错：思考态不卡死，改由主线程落子',await page.evalu
   return thinking&&dropped&&done;
 }));
 await page.evaluate(()=>{applySide('B');newGame(true);});
+ok('Worker 构造失败会撤销 Blob URL',await page.evaluate(()=>{
+  dropWorker();
+  const NativeWorker=window.Worker,create=URL.createObjectURL,revoke=URL.revokeObjectURL;
+  let url='',revoked='';
+  URL.createObjectURL=b=>{url=create.call(URL,b);return url;};
+  URL.revokeObjectURL=u=>{revoked=u;revoke.call(URL,u);};
+  window.Worker=function(){throw new Error('blocked');};
+  try{initAiWorker();}finally{
+    window.Worker=NativeWorker;URL.createObjectURL=create;URL.revokeObjectURL=revoke;
+  }
+  const cleaned=!!url&&revoked===url&&aiWorker===null&&aiWorkerUrl===null;
+  if(url&&revoked!==url)revoke.call(URL,url); /* 旧实现也让测试自身不留泄漏 */
+  initAiWorker();
+  return cleaned;
+}));
 
 /* 17. 计时按墙钟推算：定时器被节流/暂停时不少算时间 */
 ok('计时按墙钟推算且存档用时为真实值',await page.evaluate(async()=>{
@@ -384,6 +399,11 @@ ok('无效主题/配色回落到合法值',await page.evaluate(()=>{
   return (d.theme==='dark'||d.theme==='light')&&d.accent==='purple'
     &&['dark','light'].includes(JSON.parse(localStorage.getItem('yirenju.settings')).theme);
 }));
+await page.evaluate(()=>{history.length=0;localStorage.setItem('yirenju.settings',JSON.stringify({mode:'constructor'}));});
+await page.reload();await page.waitForTimeout(250);
+ok('原型继承键不能作为对局模式',await page.evaluate(()=>mode==='ai-easy'&&settings.mode==='ai-easy'
+  &&['constructor','toString','__proto__'].every(m=>!MODES_OK(m))
+  &&['ai-easy','ai-medium','ai-hard','ai-expert','pvp'].every(m=>MODES_OK(m))));
 await page.evaluate(()=>{history.length=0;localStorage.clear();});
 
 console.log(`\n${pass} passed, ${fail} failed`);
