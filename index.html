@@ -209,8 +209,9 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
 .rec-row span:last-child,.rec-head span:last-child{text-align:right}
 .rec-row .rate{color:var(--primary);font-weight:800}
 
-/* Toast */
-.toast{position:fixed;left:50%;bottom:34px;transform:translate(-50%,20px);background:var(--float);color:var(--on-surface);
+/* Toast：left:50% 的定位元素默认按「右半屏」收缩定宽，手机上稍长的提示会被挤成半屏宽并折行；
+   改为按内容定宽、以视口宽度封顶 */
+.toast{position:fixed;left:50%;bottom:34px;width:max-content;max-width:calc(100% - 32px);transform:translate(-50%,20px);background:var(--float);color:var(--on-surface);
   box-shadow:var(--shadow);padding:11px 22px;border-radius:999px;font-size:14px;font-weight:700;opacity:0;pointer-events:none;
   text-align:center;transition:opacity .25s,transform .25s;z-index:200}
 .toast.show{opacity:1;transform:translate(-50%,0)}
