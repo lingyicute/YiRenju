@@ -2223,6 +2223,8 @@ function tryHumanPlace(c){
   return true;
 }
 function tryPlaceFromEvent(e){
+  /* 菜单展开时，点在棋盘上的这一下只用来收起菜单（由随后的 click 事件完成），不能顺带落子 */
+  if(menu.classList.contains('open'))return;
   tryHumanPlace(eventCell(e));
 }
 /* 手势区分：鼠标 / 触控笔按下即落子；手指触摸改为「抬起落子」，
