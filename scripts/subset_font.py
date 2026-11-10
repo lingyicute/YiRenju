@@ -65,8 +65,12 @@ def build_subset(chars, ttf_path):
 
 
 def download(url, path):
-    with urllib.request.urlopen(url, timeout=60) as r, open(path, "wb") as f:
+    # 先写临时文件、读完再原子改名：下载中断时不会在缓存路径留下残缺文件，
+    # 否则下次运行会把它当成“已下载的完整字体”直接复用，报出难以理解的解析错误。
+    tmp = path + ".part"
+    with urllib.request.urlopen(url, timeout=60) as r, open(tmp, "wb") as f:
         f.write(r.read())
+    os.replace(tmp, path)
 
 
 def make_font_face(b64, woff_kb, b64_kb, count, mode):
