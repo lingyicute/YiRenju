@@ -1459,7 +1459,9 @@ let records=(function(){
   if(r&&r.b&&r.w&&typeof r.b==='object'&&typeof r.w==='object')return r;
   return {b:Object.assign(DEFREC(),r||{}),w:DEFREC()};
 })();
-function recOf(k){const bkt=humanP===BLACK?records.b:records.w;const v=bkt[k];return (v&&typeof v==='object'&&Number.isFinite(v.w)&&Number.isFinite(v.l))?v:(bkt[k]={w:0,l:0});}
+/* 存储里的战绩条目可能被改坏：非数字的 w/l 会让胜率算出 NaN，字符串还会被原样拼进弹窗 HTML；读取一律经此校验 */
+function recIn(bkt,k){const v=bkt[k];return (v&&typeof v==='object'&&Number.isFinite(v.w)&&Number.isFinite(v.l))?v:(bkt[k]={w:0,l:0});}
+function recOf(k){return recIn(humanP===BLACK?records.b:records.w,k);}
 
 /* 与 CSS 中 --acc-deep 保持一致的深色调（浅色主题主按钮/容器用） */
 const ACC_DEEP={purple:'#6a54c8',blue:'#3f63c0',teal:'#0f7a6e',green:'#1e7a3c',yellow:'#7d660d',orange:'#a04d08',pink:'#b02e6e',red:'#c03230'};
@@ -2040,7 +2042,7 @@ function showHelp(){
 }
 function showRecords(){
   const rowsOf=bkt=>DIFF_KEYS.map(k=>{
-    const r=bkt[k]||{w:0,l:0},t=r.w+r.l,rate=t?Math.round(r.w/t*100):0;
+    const r=recIn(bkt,k),t=r.w+r.l,rate=t?Math.round(r.w/t*100):0;
     return `<div class="rec-row"><span>${MODE_LABEL['ai-'+k]}</span><span>${r.w} 胜 / ${r.l} 负</span><span class="rate">${rate}%</span></div>`;
   }).join('');
   const sub=txt=>`<div class="rec-head" style="margin-top:12px;border:none;padding-bottom:2px"><span>${txt}</span><span></span><span></span></div>`;

@@ -327,6 +327,14 @@ await clickCell(3,12);
 ok('菜单展开时点击棋盘只收起菜单、不落子',(await histLen())===0&&await page.evaluate(()=>!menu.classList.contains('open')),'len='+(await histLen()));
 await clickCell(3,12);
 ok('菜单收起后同一点可正常落子',(await histLen())===1,'len='+(await histLen()));
+ok('战绩弹窗不渲染被改坏的存储条目',await page.evaluate(()=>{
+  const keep=records.b.easy;
+  records.b.easy={w:'<i id="recXss">9</i>',l:1};
+  showRecords();
+  const clean=!document.getElementById('recXss')&&!dialog.textContent.includes('NaN');
+  closeDialog();records.b.easy=keep;
+  return clean;
+}));
 
 /* 14. 仅主键落子；长按 Z / R 不连发 */
 await page.evaluate(()=>{closeDialog();setMode('pvp');newGame();});
