@@ -463,6 +463,18 @@ ok('Worker 构造失败会撤销 Blob URL',await page.evaluate(()=>{
   initAiWorker();
   return cleaned;
 }));
+ok('主线程搜索中途抛错后按棋谱复原盘面，不残留试落的棋子',await page.evaluate(async()=>{
+  setMode('ai-easy');applySide('B');newGame(true);
+  dropWorker();workerRebuild=false;   /* 前面的用例可能留下“下一手重建 Worker”的标记：这里必须走主线程回退 */
+  const real=aiChoose;
+  aiChoose=p=>{pushStone(0,0,p);throw new Error('boom');};   /* 模拟搜索途中（已试落一子）抛错 */
+  placeAt(7,7,BLACK);maybeAI();
+  await new Promise(r=>setTimeout(r,900));
+  aiChoose=real;
+  const clean=board[0][0]===EMPTY&&boardStones===1&&history.length===1&&!aiThinking;
+  initAiWorker();newGame(true);
+  return clean;
+}));
 
 /* 17. 计时按墙钟推算：定时器被节流/暂停时不少算时间 */
 ok('计时按墙钟推算且存档用时为真实值',await page.evaluate(async()=>{
