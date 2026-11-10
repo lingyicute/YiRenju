@@ -352,6 +352,21 @@ await page.waitForTimeout(250);
 }
 await page.setViewportSize({width:1280,height:900});
 await page.waitForTimeout(250);
+/* 状态卡片不得截断回合文字：手机常见宽度与桌面两栏各验一次（最后停在本套件的标准视口） */
+for(const [w,h] of [[360,740],[1280,900]]){
+  await page.setViewportSize({width:w,height:h});
+  await page.waitForTimeout(250);
+  const clip=await page.evaluate(()=>{
+    const tv=document.getElementById('turnValue'),keep=tv.innerHTML;let worst=0;
+    for(const t of ['你的回合','AI 思考中…','黑棋回合','白棋获胜']){
+      tv.innerHTML=dotHTML(1)+'<span>'+t+'</span>';
+      worst=Math.max(worst,tv.scrollWidth-tv.clientWidth);
+    }
+    tv.innerHTML=keep;
+    return worst;
+  });
+  ok('回合状态文字不被卡片截断（视口宽 '+w+'）',clip<=0,'clip='+clip+'px');
+}
 
 /* 14. 仅主键落子；长按 Z / R 不连发 */
 await page.evaluate(()=>{closeDialog();setMode('pvp');newGame();});
