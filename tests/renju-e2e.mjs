@@ -320,6 +320,13 @@ ok('菜单按钮的 aria-expanded 随开合同步',await page.evaluate(()=>{
   closeDialog();
   return seq.join(' ')==='false/false true/true false/false false/false';
 }));
+/* 菜单展开时点在棋盘上的那一下只负责收起菜单 */
+await page.evaluate(()=>{closeDialog();setMode('pvp');newGame();});
+await page.locator('#btnMenu').click();
+await clickCell(3,12);
+ok('菜单展开时点击棋盘只收起菜单、不落子',(await histLen())===0&&await page.evaluate(()=>!menu.classList.contains('open')),'len='+(await histLen()));
+await clickCell(3,12);
+ok('菜单收起后同一点可正常落子',(await histLen())===1,'len='+(await histLen()));
 
 /* 14. 仅主键落子；长按 Z / R 不连发 */
 await page.evaluate(()=>{closeDialog();setMode('pvp');newGame();});
