@@ -1940,6 +1940,9 @@ function thinkOnMain(tok){                       /* 主线程同步搜索（无 
     try{mv=aiChoose(aiP);}catch(err){failed=true;}
     aiThinking=false;
     if(failed){                                  /* 引擎本身抛错：不能让思考态卡死，交还给玩家悔棋或重开 */
+      /* 搜索在试落途中抛错，会把临时棋子留在 board 上（棋盘按棋谱绘制，看不见）：它们会挡住落点、
+         参与胜负与禁手判定，悔棋也撤不掉。按棋谱重建盘面与各计数表。 */
+      clearBoard();for(const m of history)setCell(m.x,m.y,m.p);
       updateHUD();scheduleDraw();
       toast('AI 计算出错，请悔棋或重开');
       return;
