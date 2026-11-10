@@ -2301,7 +2301,16 @@ $('btnRestart').addEventListener('click',()=>{newGame();toast('已开始新对�
 function init(){
   /* 存储里的主题/配色可能被改坏：无效值会让 data-theme 落到没有任何样式规则的取值上，整页失去配色 */
   const sysTheme=document.documentElement.dataset.theme==='light'?'light':'dark';
-  applyTheme(settings.theme==='light'||settings.theme==='dark'?settings.theme:sysTheme);
+  /* 从未手动选过主题（null）时保持「跟随系统」：不把首次访问时的系统主题写进存储，
+     否则头部防闪烁脚本里的跟随分支只在第一次生效；存储值被改坏（非 null 的无效值）才落盘修正。 */
+  if(settings.theme==null){
+    refreshPalette();
+    const mq=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');
+    if(mq&&mq.addEventListener)mq.addEventListener('change',ev=>{
+      if(settings.theme!=null)return;      /* 用户之后手动选过主题：不再跟随 */
+      document.documentElement.dataset.theme=ev.matches?'dark':'light';refreshPalette();
+    });
+  }else applyTheme(settings.theme==='light'||settings.theme==='dark'?settings.theme:sysTheme);
   applyAccent(isAccent(settings.accent)?settings.accent:'purple');
   applySide(settings.side);
   updateSoundUI();
