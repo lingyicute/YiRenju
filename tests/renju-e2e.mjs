@@ -335,6 +335,14 @@ ok('战绩弹窗不渲染被改坏的存储条目',await page.evaluate(()=>{
   closeDialog();records.b.easy=keep;
   return clean;
 }));
+ok('聚焦主按钮不会把超出一屏的弹窗滚到底部',await page.evaluate(async()=>{
+  dialog.style.maxHeight='160px';
+  showHelp();
+  await new Promise(r=>setTimeout(r,80));    /* 等 30ms 的延迟聚焦生效 */
+  const top=dialog.scrollTop,focused=!!document.activeElement&&document.activeElement.dataset.cmd==='ok';
+  closeDialog();dialog.style.maxHeight='';
+  return focused&&top===0;
+}));
 
 /* 14. 仅主键落子；长按 Z / R 不连发 */
 await page.evaluate(()=>{closeDialog();setMode('pvp');newGame();});

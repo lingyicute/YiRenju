@@ -1992,7 +1992,8 @@ function openDialog(html){
   clearTimeout(dlgFocusTid);
   /* 选择器列表按文档顺序取首个匹配：'.swatch.sel,button' 恒为弹窗里的第一个按钮（首个色块），当前色块须单独优先查 */
   const b=dialog.querySelector('.btn-pill.primary')||dialog.querySelector('.swatch.sel')||dialog.querySelector('button');
-  if(b)dlgFocusTid=setTimeout(()=>b.focus(),30);
+  /* preventScroll：主按钮在弹窗底部，小屏上内容超出一屏时，聚焦自带的滚动会把弹窗直接卷到末尾，标题与开头被藏起来 */
+  if(b)dlgFocusTid=setTimeout(()=>b.focus({preventScroll:true}),30);
 }
 function closeDialog(){
   clearTimeout(dlgFocusTid);dlgFocusTid=0;
