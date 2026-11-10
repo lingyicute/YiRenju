@@ -2312,7 +2312,7 @@ function init(){
     });
   }else applyTheme(settings.theme==='light'||settings.theme==='dark'?settings.theme:sysTheme);
   applyAccent(isAccent(settings.accent)?settings.accent:'purple');
-  applySide(settings.side);
+  applySide(settings.side==='W'?'W':'B');   /* 无效值回落为执黑（与 humanP 初值一致），避免两个执子按钮都不高亮 */
   updateSoundUI();
   initAiWorker();
   setMode(mode);
