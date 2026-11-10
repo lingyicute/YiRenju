@@ -1630,7 +1630,8 @@ function fitBoard(){
     const r=wrap.getBoundingClientRect();
     side=Math.min(r.width,r.height);
   }else{
-    side=wrap.clientWidth;
+    /* 单栏布局再以视口高度封顶：横屏手机上只按宽度取边长，棋盘会比屏幕高出一倍，必须来回滚动才能看全 */
+    side=Math.min(wrap.clientWidth,document.documentElement.clientHeight-24);
   }
   side=Math.max(240,Math.min(side,880));
   if(Math.abs(side-CW)>1){
