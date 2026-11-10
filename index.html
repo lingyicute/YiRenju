@@ -251,6 +251,15 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important;transition-duration:.01ms !important}
 }
+
+/* viewport-fit=cover 让页面铺进刘海/圆角之下：横屏时左右要让出安全区，否则顶栏按钮与棋盘会被遮挡。
+   放在末尾以覆盖上面各档的左右内边距；不支持 env()/max() 的浏览器整段跳过，保持原样。 */
+@supports (padding:max(0px,env(safe-area-inset-left))){
+  header,main{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+  @media (max-width:420px){
+    header,main{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+  }
+}
 </style>
 </head>
 <body>
