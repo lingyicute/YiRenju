@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="YiRenju Web - 网页版五子棋（连珠规则），黑棋禁手完整实现，支持人机对战（四种难度）与双人同屏对战">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14101c">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf8fe">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161220">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f0fe">
 <title>YiRenju Web · 五子棋 · 连珠</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='8' fill='%23a78bfa'/%3E%3Cg fill='white'%3E%3Ccircle cx='6' cy='18' r='1.7'/%3E%3Ccircle cx='9' cy='15' r='1.7'/%3E%3Ccircle cx='12' cy='12' r='1.7'/%3E%3Ccircle cx='15' cy='9' r='1.7'/%3E%3Ccircle cx='18' cy='6' r='1.7'/%3E%3C/g%3E%3C/svg%3E">
 <script>
@@ -1517,6 +1517,10 @@ function refreshPalette(){
     acc,
     deep: ACC_DEEP[accName]
   };
+  /* 浏览器界面色跟随页面实际背景（与 CSS 的 --bg 同式混色）：head 里的静态值只认系统深浅色与默认紫色，
+     手动切换主题或配色后地址栏/状态栏会与页面脱节。两条 meta 写成同一值，media 命中哪条都正确。 */
+  const bg=mixHex(dark?'#100d17':'#faf8fe',acc,dark?0.04:0.07);
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m=>{m.content=bg;});
   scheduleDraw();
 }
 function geom(){const m=CW*0.062;return{s:CW,m,g:(CW-2*m)/(N-1),r:(CW-2*m)/(N-1)*0.44};}

@@ -294,6 +294,23 @@ ok('新弹窗从顶部开始，不沿用上一个弹窗的滚动位置',await pa
   closeDialog();dialog.style.maxHeight='';
   return scrolled&&top===0;
 }));
+ok('theme-color 跟随手动切换的主题与配色，并与页面背景同色',await page.evaluate(()=>{
+  const metas=[...document.querySelectorAll('meta[name="theme-color"]')];
+  /* body 的背景带 .3s 过渡，另挂一个不带过渡的探针读 --bg 的最终值（计算值可能是 rgb() 或 color(srgb …)） */
+  const probe=document.body.appendChild(document.createElement('i'));
+  probe.style.cssText='background:var(--bg);transition:none';
+  const synced=()=>{
+    const s=getComputedStyle(probe).backgroundColor,v=s.match(/[\d.]+/g).slice(0,3).map(Number);
+    const bg=s.startsWith('color(')?v.map(n=>n*255):v;
+    return metas.length===2&&metas.every(m=>hex2rgb(m.content).every((c,i)=>Math.abs(c-bg[i])<=1));
+  };
+  applyTheme('light');applyAccent('green');
+  const light=synced();
+  applyTheme('dark');applyAccent('purple');
+  const dark=synced();
+  probe.remove();
+  return light&&dark;
+}));
 
 /* 14. 仅主键落子；长按 Z / R 不连发 */
 await page.evaluate(()=>{closeDialog();setMode('pvp');newGame();});
