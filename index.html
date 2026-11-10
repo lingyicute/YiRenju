@@ -2052,7 +2052,7 @@ function showPalette(){
   $('btnPalette').classList.add('active');
   const cur=document.documentElement.dataset.accent;
   const sw=Object.entries(ACCENTS).map(([k,c])=>`
-    <button class="swatch ${k===cur?'sel':''}" data-accent="${k}" style="background:${c};color:${c}" title="${k}">
+    <button class="swatch ${k===cur?'sel':''}" data-accent="${k}" aria-pressed="${k===cur}" style="background:${c};color:${c}" title="${k}">
       ${k===cur?'<svg class="ck" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>':''}
     </button>`).join('');
   openDialog(`
@@ -2146,7 +2146,7 @@ function setMode(m){
   if(!MODES_OK(m))return;
   mode=m;settings.mode=m;LS.set('settings',settings);
   $('subtitle').textContent=SUBTITLE[m];
-  document.querySelectorAll('#modes .chip').forEach(c=>c.classList.toggle('sel',c.dataset.mode===m));
+  document.querySelectorAll('#modes .chip').forEach(c=>{const on=c.dataset.mode===m;c.classList.toggle('sel',on);c.setAttribute('aria-pressed',on);});
   $('sides').style.display=m==='pvp'?'none':'flex';
 }
 $('modes').addEventListener('click',e=>{
@@ -2162,7 +2162,7 @@ function applySide(s){
   if(s!=='B'&&s!=='W')return;
   humanP=s==='W'?WHITE:BLACK;aiP=3-humanP;
   settings.side=s;LS.set('settings',settings);
-  document.querySelectorAll('#sides .chip').forEach(c=>c.classList.toggle('sel',c.dataset.side===s));
+  document.querySelectorAll('#sides .chip').forEach(c=>{const on=c.dataset.side===s;c.classList.toggle('sel',on);c.setAttribute('aria-pressed',on);});
 }
 $('sides').addEventListener('click',e=>{
   const chip=e.target.closest('.chip');
