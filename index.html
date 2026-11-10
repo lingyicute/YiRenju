@@ -2201,8 +2201,10 @@ let touchTap=null; /* {x0,y0,id} */
 const TAP_SLOP2=12*12; /* 允许 12px 以内的点击抖动 */
 canvas.addEventListener('pointerdown',e=>{
   if(e.pointerType==='touch'){
-    /* 多指同时按下视为手势（如双指缩放），取消待定点击 */
-    touchTap=touchTap?null:{x0:e.clientX,y0:e.clientY,id:e.pointerId};
+    /* 只有主指针（第一根手指）可能是点击；其余手指按下一律视为手势（如双指缩放），取消待定点击。
+       不能用「已有待定点击就取消、否则新建」来切换：三指时会重新建立点击，抬起其中一指就误落子，
+       遗留的状态也无法自行恢复。 */
+    touchTap=e.isPrimary?{x0:e.clientX,y0:e.clientY,id:e.pointerId}:null;
     return;
   }
   if(e.button!==0)return;   /* 右键/中键不落子（右键菜单已被屏蔽，仍会触发 pointerdown） */
