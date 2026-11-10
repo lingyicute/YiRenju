@@ -284,7 +284,7 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.3 0 2-.9 2-1.9 0-.5-.2-.9-.5-1.2-.3-.4-.5-.8-.5-1.2 0-1 .8-1.7 1.8-1.7h1.4a4.9 4.9 0 0 0 4.9-4.9C21.1 6.2 17 3 12 3z"/><circle cx="7.6" cy="10.4" r="1.15" fill="currentColor" stroke="none"/><circle cx="11" cy="7.2" r="1.15" fill="currentColor" stroke="none"/><circle cx="15.4" cy="7.6" r="1.15" fill="currentColor" stroke="none"/></svg>
     </button>
     <div class="menu-wrap">
-      <button class="icon-btn" id="btnMenu" title="菜单" aria-label="菜单" aria-haspopup="menu">
+      <button class="icon-btn" id="btnMenu" title="菜单" aria-label="菜单" aria-haspopup="menu" aria-expanded="false" aria-controls="menu">
         <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg>
       </button>
       <div class="menu" id="menu">
@@ -2132,20 +2132,23 @@ function toast(msg){
 
 /* ================= 菜单 ================= */
 const menu=$('menu');
+/* 菜单开合的唯一入口：类名、按钮高亮与 aria-expanded 一起改，读屏器才能得知菜单是否展开 */
+function setMenuOpen(on){
+  menu.classList.toggle('open',on);
+  $('btnMenu').classList.toggle('active',on);
+  $('btnMenu').setAttribute('aria-expanded',on);
+}
 $('btnMenu').addEventListener('click',e=>{
   e.stopPropagation();
-  menu.classList.toggle('open');
-  $('btnMenu').classList.toggle('active',menu.classList.contains('open'));
+  setMenuOpen(!menu.classList.contains('open'));
 });
 document.addEventListener('click',e=>{
-  if(menu.classList.contains('open')&&!e.target.closest('.menu-wrap')){
-    menu.classList.remove('open');$('btnMenu').classList.remove('active');
-  }
+  if(menu.classList.contains('open')&&!e.target.closest('.menu-wrap'))setMenuOpen(false);
 });
 menu.addEventListener('click',e=>{
   const item=e.target.closest('.menu-item');
   if(!item)return;
-  menu.classList.remove('open');$('btnMenu').classList.remove('active');
+  setMenuOpen(false);
   const act=item.dataset.act;
   if(act==='what')showWhatIsRenju();
   else if(act==='help')showHelp();
@@ -2286,8 +2289,7 @@ document.addEventListener('keydown',e=>{
   const k=e.key;
   /* Escape 仍可关闭菜单；把焦点还给菜单按钮，避免焦点留在已隐藏菜单项上。 */
   if(k==='Escape'&&menu.classList.contains('open')){
-    menu.classList.remove('open');
-    $('btnMenu').classList.remove('active');
+    setMenuOpen(false);
     $('btnMenu').focus();
     return;
   }
