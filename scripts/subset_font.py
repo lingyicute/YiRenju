@@ -144,7 +144,10 @@ def main():
     if new_html == html:
         print("页面已经是目标内容，未改动。")
         return
-    open(args.html, "w", encoding="utf-8").write(new_html)
+    tmp_html = args.html + ".part"
+    with open(tmp_html, "w", encoding="utf-8") as f:
+        f.write(new_html)
+    os.replace(tmp_html, args.html)
     print("已更新 %s（@font-face 替换 %d 处）" % (args.html, n))
     print("页面大小：%.0f KB → %.0f KB" % (len(html.encode()) / 1024, len(new_html.encode()) / 1024))
 
