@@ -10,10 +10,14 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='8' fill='%23a78bfa'/%3E%3Cg fill='white'%3E%3Ccircle cx='6' cy='18' r='1.7'/%3E%3Ccircle cx='9' cy='15' r='1.7'/%3E%3Ccircle cx='12' cy='12' r='1.7'/%3E%3Ccircle cx='15' cy='9' r='1.7'/%3E%3Ccircle cx='18' cy='6' r='1.7'/%3E%3C/g%3E%3C/svg%3E">
 <script>
 /* 防闪烁：样式加载前恢复主题与配色 */
-(function(){try{var s=JSON.parse(localStorage.getItem('yirenju.settings')||localStorage.getItem('yimoku.settings')||'null')||{};
+(function(){
+var s={};
+try{s=JSON.parse(localStorage.getItem('yirenju.settings')||localStorage.getItem('yimoku.settings')||'null')||{};}catch(e){}
 var d=document.documentElement;
-if(s.theme==='light'||s.theme==='dark')d.dataset.theme=s.theme;else if(!window.matchMedia('(prefers-color-scheme: dark)').matches)d.dataset.theme='light';
-if(['purple','blue','teal','green','yellow','orange','pink','red'].indexOf(s.accent)>=0)d.dataset.accent=s.accent;}catch(e){}})();
+if(s.theme==='light'||s.theme==='dark')d.dataset.theme=s.theme;
+else try{if(!window.matchMedia('(prefers-color-scheme: dark)').matches)d.dataset.theme='light';}catch(e){}
+if(['purple','blue','teal','green','yellow','orange','pink','red'].indexOf(s.accent)>=0)d.dataset.accent=s.accent;
+})();
 </script>
 <style>
 /* ===== Nebulove 子集（内嵌，离线可用）=====

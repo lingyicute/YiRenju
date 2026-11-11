@@ -8,9 +8,30 @@
  */
 import { readFileSync } from 'fs';
 import { brotliDecompressSync } from 'zlib';
+import { runInNewContext } from 'node:vm';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const fail = [];
 const check = (ok, msg) => { if (!ok) fail.push(msg); };
+
+/* 离线/私密浏览可能禁止读取 localStorage；启动脚本不能因此跳过系统主题。 */
+const bootstrap = (html.match(/<script>([\s\S]*?)<\/script>/) || [])[1];
+check(!!bootstrap, '缺少主题防闪烁启动脚本');
+if (bootstrap) {
+  const start = (getItem, systemDark) => {
+    const root = { dataset: { theme: 'dark', accent: 'purple' } };
+    runInNewContext(bootstrap, {
+      localStorage: { getItem }, document: { documentElement: root },
+      window: { matchMedia: () => ({ matches: systemDark }) }
+    });
+    return root.dataset;
+  };
+  check(start(() => { throw new Error('storage blocked'); }, false).theme === 'light',
+        '存储不可用时未跟随系统浅色主题');
+  check(start(() => '{invalid JSON', false).theme === 'light',
+        '设置损坏时未跟随系统浅色主题');
+  const saved = start(() => '{"theme":"dark","accent":"blue"}', false);
+  check(saved.theme === 'dark' && saved.accent === 'blue', '有效的主题与配色未覆盖系统设置');
+}
 
 const refs = [...html.matchAll(/<([a-zA-Z][\w-]*)\b[^>]*?\b(src|href)\s*=\s*["']([^"']+)["'][^>]*>/g)]
   .map(m => ({ tag: m[1].toLowerCase(), attr: m[2].toLowerCase(), url: m[3] }));
