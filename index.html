@@ -2271,7 +2271,7 @@ canvas.addEventListener('pointermove',e=>{
     return;
   }
   const c=eventCell(e);
-  const changed=JSON.stringify(c)!==JSON.stringify(hover);
+  const changed=(c===null)!==(hover===null)||(c!==null&&hover!==null&&(c.x!==hover.x||c.y!==hover.y));
   hover=c;
   if(changed)scheduleDraw();
 });
