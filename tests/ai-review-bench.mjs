@@ -50,7 +50,7 @@ if(process.argv.includes('--match')){
   }
   result??={winner:null,reason:'120-ply cap, not adjudicated draw'};
   const g={opening:o,patchedColour:swap===1?'black':'white',...result,plies:hist.length,
-   meanMs:times.map(a=>Math.round(a.reduce((a,b)=>a+b,0)/a.length)),maxMs:times.map(a=>Math.round(Math.max(...a))),moves:hist};
+   meanMs:times.map(a=>a.length?Math.round(a.reduce((a,b)=>a+b,0)/a.length):null),maxMs:times.map(a=>a.length?Math.round(Math.max(...a)):null),moves:hist};
   games.push(g);console.error(JSON.stringify({...g,moves:undefined}));
  }
  console.log(JSON.stringify({node:process.version,paths,games},null,2));
