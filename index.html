@@ -1553,6 +1553,8 @@ function refreshPalette(){
 function geom(){const m=CW*0.062;return{s:CW,m,g:(CW-2*m)/(N-1),r:(CW-2*m)/(N-1)*0.44};}
 function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
 
+/* 系统开了「减少动态效果」时不播落子缩放：页面的 CSS 动画早已按此关闭，canvas 也应一致 */
+const reducedMotionMQ=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):null;
 function scheduleDraw(){
   if(drawQueued)return;
   drawQueued=true;
@@ -1624,7 +1626,7 @@ function drawBoard(){
   }
   /* 棋子（最后一手带落子动画） */
   const last=history[history.length-1];
-  const animT=last?Math.min(1,(now-last.at)/150):1;
+  const animT=last&&!(reducedMotionMQ&&reducedMotionMQ.matches)?Math.min(1,(now-last.at)/150):1;
   for(const mv of history){
     let scale=1;
     if(mv===last&&animT<1){const t=animT;scale=1+0.5*(1-t)*(1-t);}
