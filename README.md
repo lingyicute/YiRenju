@@ -39,6 +39,7 @@ It is a **single, self-contained HTML file** with the markup, styles, and game l
   - Black moves first. Black may not make a **double-three (三三)**, **double-four (四四)**, or **overline (长连, six or more in a row)**.
   - Black wins only with **exactly five** in a row. White has no forbidden moves, and five or more in a row wins for White.
   - Forbidden points are marked with **×** on Black's turn. Playing on one is refused, and it does not count as a loss.
+  - If every empty point is forbidden for Black, Black has no legal move and loses — the same rule for the AI and for human players.
   - The everyday "free opening" rule set is used. Tournament opening rules (such as swap openings) are not implemented.
   - A rules summary and a short Renju primer are available from the menu (☰).
 

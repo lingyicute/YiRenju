@@ -1505,6 +1505,12 @@ function updateFoulMarkers(){
     if(t!=='ok'&&t!=='win')foulSet.add(c[0]*16+c[1]);
   }
 }
+/* 轮到黑方却已无合法落点（剩余空点全是禁手）？距棋子两格以外的空点不可能成禁手，
+   所以只扫候选点的禁手集已是完整的：它与剩余空点一样多，就说明每个空点都落不得。 */
+function blackStuck(){
+  updateFoulMarkers();
+  return !over&&turn===BLACK&&foulSet.size>0&&foulSet.size===N*N-history.length;
+}
 let hover=null,cursor={x:7,y:7},kbdCursor=false;
 const canvas=$('board'),ctx=canvas.getContext('2d'),wrap=$('boardWrap');
 let CW=0,drawQueued=false,pal={};
@@ -1867,6 +1873,7 @@ function placeAt(x,y,p){
   }
   if(history.length&&!over)startTimer();
   updateHUD();saveSession();scheduleDraw();announceMove(x,y,p);
+  if(blackStuck())noLegalMove(BLACK);
 }
 function onGameEnd(p){
   aiThinking=false;const tok=++aiToken;
@@ -1936,11 +1943,15 @@ function initAiWorker(){
     aiWorker=w;
   }catch(err){dropWorker();}
 }
-function noLegalAI(){                            /* AI 全盘无合法着法：按连珠规则判负 */
-  over=true;winner=humanP;stopTimer();
-  onGameEnd(humanP);
+/* 轮到的一方全盘无合法着法（只可能是黑方：剩余空点全是禁手）：按连珠规则判负。
+   旧版只处理 AI；人执黑或双人对局走到这一步时既不能落子也不会终局，对局卡死。 */
+function noLegalMove(loser){
+  over=true;winner=3-loser;winCells=null;stopTimer();
+  onGameEnd(winner);
   updateHUD();saveSession();scheduleDraw();
+  announce(`${sideName(loser)}已无可落子之处，${sideName(winner)}获胜，共 ${history.length} 手。`);
 }
+function noLegalAI(){noLegalMove(aiP);}
 function thinkOnMain(tok){                       /* 主线程同步搜索（无 Worker 或 Worker 失效时） */
   setTimeout(()=>{
     if(aiStale(tok))return;
@@ -2104,17 +2115,19 @@ function showPalette(){
 function showGameOver(p){
   let icon,title,body;
   const meta=`用时 ${fmt(elapsed)} · 共 ${history.length} 手`;
+  /* 没有获胜连线的胜局只可能来自对方无子可下（noLegalMove），不能再写「连成五子」 */
+  const how=p&&!winCells?`${sideName(3-p)}已无可落子之处`:'';
   if(mode==='pvp'){
     icon=p?ICO.crown:ICO.handshake;
     title=p?`${p===BLACK?'黑棋':'白棋'}获胜！`:'平局！';
-    body=p?`${winPhrase(p)}，${meta}。`:`棋盘已满，${meta}。`;
+    body=p?`${how||winPhrase(p)}，${meta}。`:`棋盘已满，${meta}。`;
   }else if(p===humanP){
     const r=recOf(mode.slice(3)),sideTxt=humanP===BLACK?'黑':'白';
     icon=ICO.crown;title='你赢了！🎉';
     body=`恭喜！你执${sideTxt}在「${MODE_LABEL[mode]}」难度战胜了 AI。<br>${meta} · 本难度执${sideTxt}战绩 ${r.w} 胜 ${r.l} 负`;
   }else if(p===3-humanP){
     icon=ICO.trophy;title='AI 获胜';
-    body=`AI ${winPhrase(p)}，${meta}。<br>调整策略后再试一次吧！`;
+    body=`${how||'AI '+winPhrase(p)}，${meta}。<br>调整策略后再试一次吧！`;
   }else{
     icon=ICO.handshake;title='平局！';
     body=`棋盘已满，势均力敌，${meta}。`;
@@ -2400,6 +2413,7 @@ function init(){
       updateHUD();saveSession();scheduleDraw();
       /* 回放不经过 placeAt，必须显式播报，否则读屏用户仍以为面对空盘 */
       announce(`已恢复对局，共 ${history.length} 手，轮到${sideName(turn)}。`);
+      if(blackStuck())noLegalMove(BLACK);
     }catch(err){
       setMode(origMode);applySide(origSide);
       LS.set('session',null);
