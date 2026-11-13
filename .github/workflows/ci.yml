@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       # package.json 的 test 脚本是唯一事实来源：契约检查 + 全部单元/回归套件 +
       # 全盘烟测（SMOKE_MS 只压每手预算，仍走完整 aiChoose 路径）。
       # 新增套件只需改 package.json，不会再出现「CI 漏跑」。
@@ -35,8 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     # 官方镜像预装 chromium-headless-shell 与全部系统依赖（含中文字体），
     # 彻底避开 apt-get 镜像抖动与浏览器 CDN 下载，e2e 无需在线准备浏览器。
-    # 注意：本 job 不使用 setup-node，实际运行的是镜像自带的 Node 24；
-    #       核心作业用的是 Node 20。两处若要统一，请同时调整。
+    # 注意：本 job 不使用 setup-node，实际运行的是镜像自带的 Node 24，
+    #       与核心作业 setup-node 的版本一致；升级时两处请同时调整。
     # ⚠️ 下面 container 的镜像 tag 与 playwright-core 版本必须同步升级：
     #    版本不一致会造成浏览器目录/协议错配（症状是 launch 报奇怪的错）。
     container: mcr.microsoft.com/playwright:v1.64.1-noble
