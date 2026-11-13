@@ -1464,11 +1464,14 @@ function MODES_OK(m){return Object.prototype.hasOwnProperty.call(MODE_LABEL,m);}
 let humanP=settings.side==='W'?WHITE:BLACK,aiP=3-humanP;
 function DEFREC(){return {easy:{w:0,l:0},medium:{w:0,l:0},hard:{w:0,l:0},expert:{w:0,l:0}};}
 /* 战绩按玩家执子分桶：b=玩家执黑，w=玩家执白；旧平铺结构视为执黑迁移 */
-let records=(function(){
-  const r=LS.get('records',null);
+function parseRecords(r){
   if(r&&r.b&&r.w&&typeof r.b==='object'&&typeof r.w==='object')return r;
   return {b:Object.assign(DEFREC(),r||{}),w:DEFREC()};
-})();
+}
+let records=parseRecords(LS.get('records',null));
+/* 多个标签页同开时，各页内存里的战绩副本互不知晓，整体回写会抹掉别页刚记下的胜负：
+   改写或展示前先与存储对齐。读不到（存储不可用或从未写过）就沿用内存副本，本次会话的计数照常累加。 */
+function syncRecords(){const r=LS.get('records',null);if(r!=null)records=parseRecords(r);}
 /* 存储里的战绩条目可能被改坏：非数字的 w/l 会让胜率算出 NaN，字符串还会被原样拼进弹窗 HTML；读取一律经此校验 */
 function recIn(bkt,k){const v=bkt[k];return (v&&typeof v==='object'&&Number.isFinite(v.w)&&Number.isFinite(v.l))?v:(bkt[k]={w:0,l:0});}
 function recOf(k){return recIn(humanP===BLACK?records.b:records.w,k);}
@@ -1868,6 +1871,7 @@ function placeAt(x,y,p){
 function onGameEnd(p){
   aiThinking=false;const tok=++aiToken;
   if(p&&mode!=='pvp'&&!recorded){
+    syncRecords();
     const r=recOf(mode.slice(3));
     if(p===humanP)r.w++;else r.l++;
     recorded=true;LS.set('records',records);
@@ -1972,6 +1976,7 @@ function maybeAI(){
 function undo(){
   if(aiThinking||!history.length)return;
   if(over&&mode!=='pvp'&&recorded){
+    syncRecords();
     const r=recOf(mode.slice(3));
     if(winner===humanP)r.w=Math.max(0,r.w-1);
     else if(winner)r.l=Math.max(0,r.l-1);
@@ -2056,6 +2061,7 @@ function showHelp(){
     <div class="dlg-btns"><button class="btn-pill primary" data-cmd="ok">知道了</button></div>`);
 }
 function showRecords(){
+  syncRecords();
   const rowsOf=bkt=>DIFF_KEYS.map(k=>{
     const r=recIn(bkt,k),t=r.w+r.l,rate=t?Math.round(r.w/t*100):0;
     return `<div class="rec-row"><span>${MODE_LABEL['ai-'+k]}</span><span>${r.w} 胜 / ${r.l} 负</span><span class="rate">${rate}%</span></div>`;
