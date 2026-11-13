@@ -561,6 +561,17 @@ ok('黑方无合法落点时判负终局，弹窗与播报说明原因',await pa
 }));
 await page.evaluate(()=>{history.length=0;localStorage.clear();});
 
+/* 21. 离开页面时（关闭、刷新、跳转、进入 bfcache）由 pagehide 存档进行中的对局 */
+ok('pagehide 时存档进行中的对局',await page.evaluate(()=>{
+  setMode('pvp');newGame(true);placeAt(7,7,turn);placeAt(8,8,turn);
+  localStorage.removeItem('yirenju.session');
+  window.dispatchEvent(new Event('pagehide'));
+  const s=JSON.parse(localStorage.getItem('yirenju.session')||'null');
+  newGame(true);
+  return !!s&&s.mode==='pvp'&&s.moves.length===2;
+}));
+await page.evaluate(()=>{history.length=0;localStorage.clear();});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
