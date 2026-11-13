@@ -522,6 +522,22 @@ ok('原型继承键不能作为对局模式',await page.evaluate(()=>mode==='ai-
   &&['ai-easy','ai-medium','ai-hard','ai-expert','pvp'].every(m=>MODES_OK(m))));
 await page.evaluate(()=>{history.length=0;localStorage.clear();});
 
+/* 19. 多标签页：记战绩前先与存储对齐，内存里的旧副本不得覆盖别页刚记下的胜负 */
+ok('记战绩前与存储对齐，不覆盖别的标签页刚记下的胜负',await page.evaluate(()=>{
+  setMode('ai-easy');applySide('B');newGame(true);
+  records={b:DEFREC(),w:DEFREC()};LS.set('records',records);
+  const other=JSON.parse(localStorage.getItem('yirenju.records'));
+  other.b.easy.w=1;localStorage.setItem('yirenju.records',JSON.stringify(other));  /* 另一页刚赢了一局 */
+  over=true;winner=WHITE;onGameEnd(WHITE);                                         /* 本页输了一局 */
+  const s=JSON.parse(localStorage.getItem('yirenju.records')).b.easy;
+  showRecords();
+  const shown=document.getElementById('dialog').textContent.includes('1 胜 / 1 负');
+  closeDialog();newGame(true);
+  records={b:DEFREC(),w:DEFREC()};LS.set('records',records);
+  return s.w===1&&s.l===1&&shown;
+}));
+await page.evaluate(()=>{history.length=0;localStorage.clear();});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
