@@ -538,6 +538,29 @@ ok('记战绩前与存储对齐，不覆盖别的标签页刚记下的胜负',aw
 }));
 await page.evaluate(()=>{history.length=0;localStorage.clear();});
 
+/* 20. 黑方全盘只剩禁手点：按与 AI 相同的规则判负终局（旧版人执黑/双人对局在此卡死） */
+ok('黑方无合法落点时判负终局，弹窗与播报说明原因',await page.evaluate(async()=>{
+  setMode('pvp');newGame(true);
+  const real=blackLegality;
+  blackLegality=()=>'33';                  /* 模拟每个空点都是禁手 */
+  /* 无五连铺盘：按 (x+2y)%4 分两色，横竖斜任何方向的连子都不超过两颗 */
+  const B=[],W=[];
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++)(((x+2*y)%4)<2?B:W).push([x,y]);
+  try{
+    for(let i=0;!over&&i<Math.min(B.length,W.length);i++){
+      placeAt(B[i][0],B[i][1],BLACK);
+      if(!over)placeAt(W[i][0],W[i][1],WHITE);
+    }
+  }finally{blackLegality=real;}
+  await new Promise(r=>setTimeout(r,900));
+  const ended=over&&winner===WHITE&&!winCells&&turn===BLACK&&history.length<N*N&&!timerRunning;
+  const told=document.getElementById('dialog').textContent.includes('黑棋已无可落子之处')
+    &&document.getElementById('a11yStatus').textContent.includes('黑棋已无可落子之处，白棋获胜');
+  closeDialog();newGame(true);
+  return ended&&told;
+}));
+await page.evaluate(()=>{history.length=0;localStorage.clear();});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
