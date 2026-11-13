@@ -585,6 +585,29 @@ await page.emulateMedia({reducedMotion:null});
 ok('减少动态效果时 canvas 不播落子缩放',animDefault===true&&animReduced===false,`default=${animDefault} reduced=${animReduced}`);
 await page.evaluate(()=>{history.length=0;localStorage.clear();});
 
+/* 23. 多标签页：别页改了主题/配色/音效，本页同步套用，之后的回写不再把它改回去。
+   两个标签页须在同一上下文里才共用 localStorage、真实收到 storage 事件，故单开一个上下文。 */
+{
+  const ctx=await browser.newContext();
+  const tabA=await ctx.newPage(),tabB=await ctx.newPage();
+  for(const t of [tabA,tabB])await t.goto('http://localhost:8600/'+pageName,{waitUntil:'load'});
+  await tabA.evaluate(()=>{applyTheme('light');applyAccent('purple');});
+  await tabB.waitForTimeout(150);
+  await tabB.evaluate(()=>{applyTheme('dark');applyAccent('teal');settings.sound=false;LS.set('settings',settings);});
+  await tabA.waitForTimeout(200);
+  const r=await tabA.evaluate(()=>{
+    const d=document.documentElement.dataset;
+    const live=d.theme==='dark'&&d.accent==='teal'&&settings.sound===false
+      &&document.getElementById('soundText').textContent.includes('关');
+    setMode(mode);                                   /* 本页任意一次整体回写 settings */
+    const s=JSON.parse(localStorage.getItem('yirenju.settings'));
+    return {live,kept:s.theme==='dark'&&s.accent==='teal'&&s.sound===false};
+  });
+  await ctx.close();
+  ok('别的标签页改了主题/配色/音效：本页同步套用，回写不覆盖',r.live&&r.kept,JSON.stringify(r));
+}
+
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
