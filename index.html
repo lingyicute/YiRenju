@@ -901,13 +901,17 @@ function hashFromBoard(){
    |v|>8900000 一律按胜负分处理（百步内不变号），其余分值原样存取。 */
 function ttIn(v,d){return v>8900000?v-d*1000:v<-8900000?v+d*1000:v;}
 function ttOut(v,d){return v>8900000?v+d*1000:v<-8900000?v-d*1000:v;}
+/* 每个格点一个共享的 [x,y]：candidates() 不必再为每个候选点新分配坐标对。
+   它是调用最频繁的函数之一（每个搜索结点的取胜点扫描、冲四着法与排序都要走一遍），
+   原实现一次搜索要喂给 GC 海量短命的 [x,y]。调用方一律只读，切勿改写返回的坐标对。 */
+const CELL=Array.from({length:N*N},(_,i)=>[(i/N)|0,i%N]);
 /* 收集距离已有棋子 dist 内的空点作为候选（读 CAND 计数表，按行序输出） */
 function candidates(dist){
   const cnt=dist<=1?CAND1:CAND2,out=[];
   for(let i=0;i<N*N;i++){
     if(cnt[i]<=0)continue;
-    const x=(i/N)|0,y=i%N;
-    if(board[x][y]===EMPTY)out.push([x,y]);
+    const c=CELL[i];
+    if(board[c[0]][c[1]]===EMPTY)out.push(c);
   }
   if(out.length)return out;
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)return out; /* 满盘：确无候选 */
