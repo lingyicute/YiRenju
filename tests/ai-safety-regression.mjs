@@ -47,6 +47,18 @@ test('qNode horizon recognizes an illegal forced block, not a quiet evaluation',
   assert.deepEqual(r.wins.opp,[{x:7,y:7}]);
   assert.ok(r.score<=-9000000,`got ${r.score}`);
 });
+test('illegal forced block scores like a double threat at the same qNode horizon',()=>{
+  const r=run(`
+  for(let y=3;y<=6;y++)pushStone(7,y,WHITE);
+  for(const [x,y] of [[7,2],[4,7],[5,7],[6,7],[8,7],[9,7]])pushStone(x,y,BLACK);
+  searchDeadline=Infinity;
+  const blocked=[0,3,6].map(qd=>qNode(BLACK,-Infinity,Infinity,qd));
+  for(let x=0;x<=3;x++)pushStone(x,14,WHITE);   /* second white four: two winning points */
+  const double=[0,3,6].map(qd=>qNode(BLACK,-Infinity,Infinity,qd));
+  return {blocked,double};`);
+  assert.deepEqual(r.double,[-9000000,-9000030,-9000060]);
+  assert.deepEqual(r.blocked,r.double);
+});
 test('winPointsBoth saturates each side at two, like winPointsOne',()=>{
   const r=run(`
   for(const y of [2,7,12])for(let x=3;x<=6;x++)pushStone(x,y,BLACK);
