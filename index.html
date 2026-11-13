@@ -856,7 +856,8 @@ function qNode(p,alpha,beta,qd,knownWins){
   if(w.opp.length>1)return -9000000-qd*10;           /* 对方双杀点，堵不住 */
   if(w.opp.length===1){                              /* 被迫单挡 */
     const b=w.opp[0];
-    if(p===BLACK){const t=blackLegality(b.x,b.y);if(t!=='ok'&&t!=='win')return -9000000;} /* 无合法挡点 */
+    /* 无合法挡点：与对方双杀同一约定带上 qd 加成（越早的败局分越低），否则杀棋线之间的快慢排序失真 */
+    if(p===BLACK){const t=blackLegality(b.x,b.y);if(t!=='ok'&&t!=='win')return -9000000-qd*10;}
     if(qd<=0)return evalDiff(p);     /* 有合法挡点才允许在静态延伸上限返回估值 */
     pushStone(b.x,b.y,p);                            /* 走 pushStone：本子树的 candidates() 必须看得见这手棋 */
     const v=-qNode(3-p,-beta,-alpha,qd-1);
