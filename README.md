@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-189%20KiB-blue" alt="Self-contained HTML, approximately 189 KiB"></a>
+  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-192%20KiB-blue" alt="Self-contained HTML, approximately 192 KiB"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Runtime%20Setup-None-brightgreen" alt="No runtime setup"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Network%20Requests-Zero-brightgreen" alt="Zero network requests"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/github/stars/lingyicute/YiRenju?style=flat&color=yellow" alt="GitHub Stars"></a>
@@ -210,7 +210,7 @@ node tests/ai-selfplay-smoke.mjs
 # (report only, ~6–7 min at GAMES=1; bump samples with GAMES=3)
 node tests/ai-tournament.mjs
 
-# Browser end-to-end UI tests — 87 assertions (one-time setup required)
+# Browser end-to-end UI tests — 92 assertions (one-time setup required)
 python3 -m http.server 8600     # serve this directory
 npm i playwright-core @playwright/browser-chromium
 npx playwright-core install chromium-headless-shell
