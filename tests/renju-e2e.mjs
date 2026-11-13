@@ -572,6 +572,19 @@ ok('pagehide 时存档进行中的对局',await page.evaluate(()=>{
 }));
 await page.evaluate(()=>{history.length=0;localStorage.clear();});
 
+/* 22. 系统开启「减少动态效果」时 canvas 不播落子缩放（CSS 动画早已按此关闭） */
+const animQueued=()=>page.evaluate(()=>{
+  setMode('pvp');newGame(true);placeAt(7,7,turn);
+  drawQueued=false;drawBoard();        /* 刚落子的 150ms 内：有动画时 drawBoard 会接着排下一帧 */
+  const q=drawQueued;newGame(true);return q;
+});
+const animDefault=await animQueued();
+await page.emulateMedia({reducedMotion:'reduce'});
+const animReduced=await animQueued();
+await page.emulateMedia({reducedMotion:null});
+ok('减少动态效果时 canvas 不播落子缩放',animDefault===true&&animReduced===false,`default=${animDefault} reduced=${animReduced}`);
+await page.evaluate(()=>{history.length=0;localStorage.clear();});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
