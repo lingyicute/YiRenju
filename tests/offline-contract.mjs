@@ -71,6 +71,8 @@ if (main) {
           'CORE 段混入了浏览器专属 API（Worker 中会抛错）');
   }
   check(!/function\s+oracle\s*\(|describe\s*\(|node:test/.test(src), '产品 HTML 混入了测试代码');
+  /* unload / beforeunload 监听会让浏览器放弃往返缓存（Firefox 两者皆然）；离开页面时的存档请挂 pagehide */
+  check(!/addEventListener\(\s*['"](?:before)?unload['"]/.test(src), '主脚本注册了 unload / beforeunload（会阻止 bfcache）');
 }
 
 /* ---- 5. 内嵌字体子集的字形覆盖 ----

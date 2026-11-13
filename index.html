@@ -1667,7 +1667,9 @@ function fitBoard(){
 let rszT=null;
 window.addEventListener('resize',()=>{clearTimeout(rszT);rszT=setTimeout(fitBoard,60);});
 window.addEventListener('orientationchange',()=>setTimeout(fitBoard,120));
-window.addEventListener('beforeunload',()=>{if(history.length)saveSession();});
+/* 离开页面前的存档挂在 pagehide 上：注册 beforeunload 的页面在 Firefox 里进不了往返缓存（bfcache），
+   后退回来只能整页重载；pagehide 在关闭、刷新、跳转与进入 bfcache 时都会触发 */
+window.addEventListener('pagehide',()=>{if(history.length)saveSession();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&history.length)saveSession();});
 
 /* ================= 计时 ================= */
