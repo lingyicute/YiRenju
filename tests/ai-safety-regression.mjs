@@ -45,7 +45,7 @@ test('qNode horizon recognizes an illegal forced block, not a quiet evaluation',
   assert.equal(r.legal,'overline');
   assert.equal(r.wins.mine.length,0);
   assert.deepEqual(r.wins.opp,[{x:7,y:7}]);
-  assert.ok(r.score<=-9000000,`got ${r.score}`);
+  assert.ok(r.score<-8900000,`got ${r.score}`);
 });
 test('illegal forced block scores like a double threat at the same qNode horizon',()=>{
   const r=run(`
@@ -56,8 +56,19 @@ test('illegal forced block scores like a double threat at the same qNode horizon
   for(let x=0;x<=3;x++)pushStone(x,14,WHITE);   /* second white four: two winning points */
   const double=[0,3,6].map(qd=>qNode(BLACK,-Infinity,Infinity,qd));
   return {blocked,double};`);
-  assert.deepEqual(r.double,[-9000000,-9000030,-9000060]);
+  assert.deepEqual(r.double,[-8999900,-8999930,-8999960]);
   assert.deepEqual(r.blocked,r.double);
+});
+test('quiescence mates never outrank a depth-zero immediate win',()=>{
+  const r=run(`
+  searchDeadline=Infinity;
+  for(let x=5;x<=8;x++)pushStone(x,7,WHITE);
+  const five=negamax(0,-Infinity,Infinity,WHITE,-1,-1);    /* live four: five on this move */
+  pushStone(8,7,EMPTY);
+  const three=negamax(0,-Infinity,Infinity,WHITE,-1,-1);   /* live three: five two plies later */
+  return {five,three};`);
+  assert.equal(r.five,9000000);
+  assert.ok(r.three>8900000&&r.three<r.five,`five=${r.five} three=${r.three}`);
 });
 test('winPointsBoth saturates each side at two, like winPointsOne',()=>{
   const r=run(`

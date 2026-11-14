@@ -72,12 +72,12 @@ eq('qNode actually engaged',api.getQNodes()>0,true);
 /* (f) 白棋活三 → 冲四扩展看到活四必杀（2层VCF） */
 blank();put([[5,5],[6,5],[7,5]],WHITE);put([[12,12],[12,13]],BLACK);
 eq('quiet pos has no white win point yet',api.winPointsAll(WHITE).length,0);
-eq('qNode sees open-four win',api.qNode(WHITE,-1e18,1e18,8)>=9000000,true);
+eq('qNode sees open-four win',api.qNode(WHITE,-1e18,1e18,8)>8900000,true);
 
 /* (g) 四步VCF：白两次冲四，第二次成活四（黑两次被迫应） */
 blank();put([[2,3],[3,3],[5,3],[4,5],[4,6]],WHITE);put([[1,3]],BLACK);
 api.setDeadline(Date.now()+3000);api.setQNodes(0);
-eq('4-ply VCF forced win',api.qNode(WHITE,-1e18,1e18,8)>=9000000,true);
+eq('4-ply VCF forced win',api.qNode(WHITE,-1e18,1e18,8)>8900000,true);
 
 /* (h) 对照组：稀疏平静局面不得误判有杀 */
 blank();put([[3,3],[11,11]],WHITE);put([[7,2],[2,12]],BLACK);
@@ -89,7 +89,7 @@ eq('overline move not in fourMoves',api.fourMoves(BLACK,8).some(m=>m.x===8&&m.y=
 
 /* (j) 黑方有合法胜点时 qNode 直接判胜 */
 blank();put([[3,3],[4,3],[5,3],[6,3]],BLACK);
-eq('black win via qNode',api.qNode(BLACK,-1e18,1e18,8)>=9000000,true);
+eq('black win via qNode',api.qNode(BLACK,-1e18,1e18,8)>8900000,true);
 /* (k) 外部评审回归：AI 执黑·简单难度不得随机选中禁手点（对抗性 RNG 全覆盖） */
 blank();put([[6,7],[8,7],[7,6],[7,8]],BLACK);put([[2,2],[12,12]],WHITE);
 api.setMode('ai-easy');
