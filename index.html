@@ -1945,11 +1945,12 @@ function dropWorker(){                           /* 终止并释放 Worker；之
    仍是当前 tok 但局面已不再轮到 AI，则只负责收起思考态。返回 true 表示应丢弃本次结果。 */
 function aiStale(tok){
   if(tok!==aiToken)return true;
-  if(over||turn!==aiP){aiThinking=false;updateHUD();return true;}
+  if(over||mode==='pvp'||turn!==aiP){aiThinking=false;updateHUD();return true;}
   return false;
 }
 function initAiWorker(){
   if(typeof Worker==='undefined'||typeof Blob==='undefined'||typeof URL==='undefined')return;
+  dropWorker();
   try{
     const tag=document.getElementById('main');
     if(!tag)return;
@@ -1978,7 +1979,7 @@ function initAiWorker(){
       if(ev&&ev.preventDefault)ev.preventDefault();
       dropWorker();
       if(workerBudget>0){workerBudget--;workerRebuild=true;}   /* 下一手重建 Worker，避免此后一直在主线程冻结界面 */
-      if(aiThinking&&!over&&turn===aiP)thinkOnMain(aiToken);
+      if(aiThinking&&!over&&mode!=='pvp'&&turn===aiP)thinkOnMain(aiToken);
     };
     w.onmessageerror=w.onerror;                  /* 结果无法反序列化时同样没有回信 */
     aiWorker=w;
