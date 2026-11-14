@@ -250,12 +250,15 @@ for(const [x,y] of [[0,0],[6,7],[0,1],[8,7],[0,2],[7,6],[0,3],[7,8]])await click
 await clickCell(7,7); /* 白棋在“三三形位”落子——白无禁手 */
 ok('白棋无禁手（双三位可落）',(await histLen())===9,'len='+(await histLen()));
 
-/* 11. 执白悔至空盘 → AI 重新先手 */
+/* 11. 执白且盘上只有 AI 首手：没有玩家的棋可悔，悔棋按钮禁用，悔棋不让 AI 原样重算 */
 await page.evaluate(()=>{setMode('ai-easy');applySide('W');newGame();});
-await page.waitForFunction(()=>history.length===1,{timeout:6000});
-await page.evaluate(()=>undo());
-await page.waitForFunction(()=>history.length===1,{timeout:6000});
-ok('执白悔至空盘后 AI 重新先手',true);
+await page.waitForFunction(()=>history.length===1&&!aiThinking,{timeout:6000});
+ok('执白仅有 AI 首手时悔棋按钮禁用',await page.$eval('#btnUndo',el=>el.disabled));
+ok('执白仅有 AI 首手时悔棋为空操作',await page.evaluate(()=>{undo();return history.length===1&&!aiThinking;}));
+await clickCell(8,8);
+await page.waitForFunction(()=>history.length===3&&!aiThinking,{timeout:6000});
+ok('执白落子后悔棋撤回一个回合并保留 AI 首手',await page.evaluate(()=>{undo();
+  return history.length===1&&history[0].p===BLACK&&turn===WHITE&&!aiThinking;}));
 
 /* 12. 执白胜局计入 w 桶且文案含“执白” */
 await page.evaluate(()=>{newGame();

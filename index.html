@@ -1804,7 +1804,7 @@ function updateHUD(){
     html=turn===humanP?dotHTML(turn)+'<span>你的回合</span>':dotHTML(turn)+`<span>${aiThinking?'AI 思考中…':'AI 回合'}</span>`;
   }
   tv.innerHTML=html;
-  $('btnUndo').disabled=!history.length||aiThinking;
+  $('btnUndo').disabled=!canUndo();
   updateFoulMarkers();
 }
 
@@ -2044,8 +2044,14 @@ function maybeAI(){
   }
   thinkOnMain(tok);
 }
+/* 人机对局只能悔玩家自己走过的棋：执白时盘上只有 AI 的首手，悔掉它只会让 AI
+   原样重下（各难度空盘首手都是天元），白白进入一次「思考中」并把计时归零 */
+function canUndo(){
+  if(aiThinking||!history.length)return false;
+  return mode==='pvp'||history.some(m=>m.p===humanP);
+}
 function undo(){
-  if(aiThinking||!history.length)return;
+  if(!canUndo())return;
   if(over&&mode!=='pvp'&&recorded){
     syncRecords();
     const r=recOf(mode.slice(3));
@@ -2055,7 +2061,7 @@ function undo(){
   }
   if(over){over=false;winner=0;winCells=null;}
   /* 至少撤 1 手；人机模式再撤到轮到玩家为止。固定撤 2 手会在玩家刚落下制胜子时多撤 AI 的上一手，
-     悔棋后反而轮到 AI 并让它重算。执白悔至空盘时轮到 AI 先手，由下面的 maybeAI 补一手。 */
+     悔棋后反而轮到 AI 并让它重算。canUndo 保证盘上有玩家的棋，执白时总会停在 AI 首手之后。 */
   const popOne=()=>{const mv=history.pop();setCell(mv.x,mv.y,EMPTY);};
   popOne();
   if(mode!=='pvp')while(history.length&&(history.length%2===0?BLACK:WHITE)!==humanP)popOne();
@@ -2069,7 +2075,7 @@ function undo(){
   aiToken++;aiThinking=false;
   updateHUD();saveSession();scheduleDraw();
   announce('已悔棋，回到第 '+(history.length+1)+' 手，轮到'+sideName(turn)+'。');
-  maybeAI(); /* 悔棋后若轮到 AI 执黑（空盘回到 AI 先手），自动补一手 */
+  maybeAI(); /* 兜底：悔棋后若轮到 AI（如外部直写棋谱的局面），自动补一手 */
 }
 
 /* ================= 对话框系统 ================= */
