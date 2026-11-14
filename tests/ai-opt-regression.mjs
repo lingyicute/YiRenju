@@ -140,7 +140,7 @@ function nThreeMovesVCT(p,cap){
 return {N,EMPTY,BLACK,WHITE,DIRS,
   setBoard:(b)=>{board=b;syncCand();},getBoard:()=>board,syncCand,setCell,pushStone,zobristInit,hashFromBoard,
   candidates,winCount,winPointsOne,winPointsBoth,winPointsAll,fourMoves,threeMovesVCT,ptsToFiveThrough,
-  isFreeThreeDir,openThreeDir,linkedTo,runInfo,
+  isFreeThreeDir,openThreeDir,linkedTo,runInfo,evalDiff,evalBoard,
   n:{nWinCount,nPtsToFive,nIsFreeThreeDir,nOpenThreeDir,nWinPointsOne,nWinPointsBoth,nFourMoves,nThreeMovesVCT}};`)();
 const {N,EMPTY,BLACK,WHITE,DIRS}=api;
 let pass=0,fail=0;
@@ -258,6 +258,48 @@ for(let g=0;g<14;g++){
   }
   ck('syncCand 重建 WC（直写盘面路径）',bad===0,bad);
   ck('重建后黑 (5,4)/(5,9) 为成五点',api.winPointsOne(BLACK).some(m=>m.x===5&&(m.y===4||m.y===9)));
+}
+
+/* ---------- 6) evalDiff 的逐子分缓存（EVS/EVD）与逐子重算一致 ----------
+   evalBoard 不走缓存，作对照。三种扰动：全盘随机落 / 撤 / 改色；集中在四条线上堆同色长连段
+   （距离超过 4 格的子仍会经 runInfo 读到被改的那一格）；直写盘面后 syncCand。
+   中途穿插会裸写格试落的查询，确认试落不会污染缓存。 */
+{
+  const ri=n=>Math.floor(rnd()*n);
+  const empty=()=>Array.from({length:N},()=>new Array(N).fill(EMPTY));
+  let checked=0,bad=0;
+  const cmp=()=>{
+    checked++;
+    const want=api.evalBoard(BLACK)-api.evalBoard(WHITE);
+    if(api.evalDiff(BLACK)!==want||api.evalDiff(WHITE)!==-want)bad++;
+  };
+  api.setBoard(empty());
+  for(let i=0;i<4000;i++){
+    (i&1?api.setCell:api.pushStone)(ri(N),ri(N),ri(3));
+    if(i%5===0){api.fourMoves(1+ri(2),4);api.winPointsBoth(BLACK);}
+    cmp();
+  }
+  ck(`evalDiff 缓存：全盘随机落/撤/改色与逐子重算一致(${checked}次)`,bad===0,bad);
+  checked=0;bad=0;
+  for(let round=0;round<12;round++){
+    api.setBoard(empty());
+    const col=1+ri(2);
+    for(let i=0;i<400;i++){
+      const t=ri(4),k=ri(N),r=ri(10);
+      const x=t===0?7:k,y=t===0?k:t===1?7:t===2?k:N-1-k;   /* 一横、一竖、两条斜线 */
+      api.setCell(x,y,r<6?col:r<8?EMPTY:3-col);
+      cmp();
+    }
+  }
+  ck(`evalDiff 缓存：长连段上的改动与逐子重算一致(${checked}次)`,bad===0,bad);
+  checked=0;bad=0;
+  for(let round=0;round<8;round++){
+    const b=api.getBoard();
+    for(let x=0;x<N;x++)for(let y=0;y<N;y++)b[x][y]=rnd()<0.7?1+ri(2):EMPTY;
+    api.syncCand();cmp();
+    for(let i=0;i<200;i++){api.setCell(ri(N),ri(N),ri(3));cmp();}
+  }
+  ck(`evalDiff 缓存：直写盘面经 syncCand 后与逐子重算一致(${checked}次)`,bad===0,bad);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);
