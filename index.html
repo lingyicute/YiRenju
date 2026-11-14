@@ -1682,8 +1682,8 @@ window.addEventListener('resize',()=>{clearTimeout(rszT);rszT=setTimeout(fitBoar
 window.addEventListener('orientationchange',()=>setTimeout(fitBoard,120));
 /* 离开页面前的存档挂在 pagehide 上：注册 beforeunload 的页面在 Firefox 里进不了往返缓存（bfcache），
    后退回来只能整页重载；pagehide 在关闭、刷新、跳转与进入 bfcache 时都会触发 */
-window.addEventListener('pagehide',()=>{if(history.length)saveSession();});
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&history.length)saveSession();});
+window.addEventListener('pagehide',()=>{if(history.length&&!over)saveSession();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&history.length&&!over)saveSession();});
 
 /* ================= 计时 ================= */
 function fmt(t){
