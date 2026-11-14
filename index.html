@@ -1366,6 +1366,7 @@ function aiChooseRaw(p){
   zobristInit();
   hashFromBoard();
   ttDraft++;
+  KILL.fill(-1);
   qNodes=0;
   let root=orderedMoves(p,cfg.w);
   const staticBest=root[0];                    /* 首层超时时，不把未验证的提示当作最优 */
