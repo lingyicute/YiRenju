@@ -1,6 +1,7 @@
 /* YiRenju 端到端测试（需一次性环境准备）：
    1) 启动静态服务：在仓库根目录 python3 -m http.server 8600
-   2) 安装依赖：npm i playwright-core @playwright/browser-chromium && npx playwright-core install chromium-headless-shell
+   2) 安装依赖：npm i --no-save playwright-core && npx playwright-core install chromium-headless-shell
+      （--no-save：不把依赖写进 package.json；无头壳浏览器已够用，不必再装 @playwright/browser-chromium）
       （也可以 npx playwright-core install chromium 全量浏览器，脚本会自动发现）
    运行: node tests/renju-e2e.mjs   (在仓库根目录下) */
 import {chromium} from 'playwright-core';
