@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-194%20KiB-blue" alt="Self-contained HTML, approximately 194 KiB"></a>
+  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-197%20KiB-blue" alt="Self-contained HTML, approximately 197 KiB"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Runtime%20Setup-None-brightgreen" alt="No runtime setup"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Network%20Requests-Zero-brightgreen" alt="Zero network requests"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/github/stars/lingyicute/YiRenju?style=flat&color=yellow" alt="GitHub Stars"></a>
@@ -212,7 +212,7 @@ node tests/ai-tournament.mjs
 
 # Browser end-to-end UI tests — 101 assertions (one-time setup required)
 python3 -m http.server 8600     # serve this directory
-npm i playwright-core @playwright/browser-chromium
+npm i --no-save playwright-core # --no-save: keep package.json dependency-free
 npx playwright-core install chromium-headless-shell
 node tests/renju-e2e.mjs
 ```
