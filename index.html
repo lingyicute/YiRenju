@@ -1274,7 +1274,8 @@ function guardSafe(p,mv,ms){
   try{
     if(isWinRun(mv.x,mv.y,p))return true;
     searchDeadline=Date.now()+ms;searchAborted=false;
-    const score=qNode(3-p,-Infinity,Infinity,GUARD_DEPTH*2);
+    /* 只问 score>=8900000（整数分域）：零窗探测与全窗判定严格等价，发现首条必杀或守方逃生即剪枝 */
+    const score=qNode(3-p,8899999,8900000,GUARD_DEPTH*2);
     return searchAborted||Date.now()>searchDeadline||score<8900000;
   }finally{
     pushStone(mv.x,mv.y,EMPTY);
