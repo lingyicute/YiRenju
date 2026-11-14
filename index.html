@@ -1491,14 +1491,27 @@ $('btnTheme').addEventListener('click',()=>{
 });
 /* 多个标签页共用一份 settings：别页改了主题、配色或音效时同步内存副本并即时套用，
    否则本页下次整体回写会把别页的选择改回去。mode / side 跟着各页自己的对局走，不跟随。 */
-window.addEventListener('storage',e=>{
-  if(e.key!=='yirenju.settings'||!e.newValue)return;
-  let s=null;try{s=JSON.parse(e.newValue);}catch(err){}
-  if(!s||typeof s!=='object')return;
+function syncExternalSettings(s){
+  if(!s||typeof s!=='object'||Array.isArray(s))return;
+  const oldAccent=settings.accent;
   if(s.theme==='light'||s.theme==='dark'){settings.theme=s.theme;document.documentElement.dataset.theme=s.theme;}
   if(isAccent(s.accent)){settings.accent=s.accent;document.documentElement.dataset.accent=s.accent;}
   if(typeof s.sound==='boolean'){settings.sound=s.sound;updateSoundUI();}
   refreshPalette();
+  if(dialogOpenFlag&&settings.accent!==oldAccent&&dialog.querySelector('.swatches'))showPalette();
+}
+window.addEventListener('storage',e=>{
+  if(e.key!=='yirenju.settings'||!e.newValue)return;
+  let s=null;try{s=JSON.parse(e.newValue);}catch(err){}
+  syncExternalSettings(s);
+});
+/* 从往返缓存（bfcache）恢复时页面冻结期间收不到 storage 事件，计时基准也停在离开前：
+   重置 timerLast 避免把离开页面的时间算入用时，并重新同步设置与棋盘尺寸。 */
+window.addEventListener('pageshow',e=>{
+  if(!e.persisted)return;
+  if(timerRunning)timerLast=Date.now();
+  syncExternalSettings(LS.get('settings',null));
+  fitBoard();
 });
 
 /* ================= 游戏状态 ================= */
