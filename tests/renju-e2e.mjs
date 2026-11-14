@@ -607,6 +607,61 @@ await page.evaluate(()=>{history.length=0;localStorage.clear();});
   ok('别的标签页改了主题/配色/音效：本页同步套用，回写不覆盖',r.live&&r.kept,JSON.stringify(r));
 }
 
+/* 24. 已终局对局在 pagehide 时不得清空另一标签页保存的进行中存档 */
+ok('已终局对局在 pagehide 时不覆盖别页进行中的存档',await page.evaluate(()=>{
+  setMode('pvp');newGame(true);
+  for(let i=0;i<5;i++){placeAt(3+i,3,1);if(!over)placeAt(3+i,10,2);}
+  const other={mode:'pvp',moves:[{x:7,y:7}],elapsed:5,over:false,side:'B'};
+  localStorage.setItem('yirenju.session',JSON.stringify(other));
+  window.dispatchEvent(new Event('pagehide'));
+  const s=JSON.parse(localStorage.getItem('yirenju.session')||'null');
+  closeDialog();newGame(true);
+  return !!s&&s.moves.length===1&&s.elapsed===5;
+}));
+
+/* 25. bfcache 恢复（pageshow persisted）重置计时基准并同步外部设置 */
+ok('bfcache 恢复时重置计时基准并同步外部设置',await page.evaluate(()=>{
+  setMode('pvp');newGame(true);placeAt(7,7,turn);
+  applyTheme('dark');applyAccent('purple');
+  timerLast-=60000;
+  localStorage.setItem('yirenju.settings',JSON.stringify({theme:'light',accent:'teal',mode:'pvp',side:'B',sound:false}));
+  const ev=new Event('pageshow');Object.defineProperty(ev,'persisted',{value:true});
+  window.dispatchEvent(ev);
+  syncElapsed();
+  const d=document.documentElement.dataset;
+  const res=elapsed<5&&d.theme==='light'&&d.accent==='teal'&&settings.sound===false;
+  applyTheme('dark');applyAccent('purple');settings.sound=true;LS.set('settings',settings);updateSoundUI();
+  newGame(true);
+  return res;
+}));
+
+/* 26. 打开对话框自动收起菜单；菜单展开且焦点在 body 时屏蔽棋盘快捷键 */
+ok('打开对话框自动收起已展开的菜单',await page.evaluate(()=>{
+  setMenuOpen(true);
+  showHelp();
+  const closed=!menu.classList.contains('open')&&document.getElementById('btnMenu').getAttribute('aria-expanded')==='false';
+  closeDialog();
+  return closed;
+}));
+ok('菜单展开且焦点在 body 时屏蔽棋盘快捷键',await page.evaluate(()=>{
+  setMode('pvp');newGame(true);placeAt(7,7,turn);
+  document.activeElement&&document.activeElement.blur&&document.activeElement.blur();
+  setMenuOpen(true);
+  document.dispatchEvent(new KeyboardEvent('keydown',{key:'r',bubbles:true}));
+  document.dispatchEvent(new KeyboardEvent('keydown',{key:'z',bubbles:true}));
+  const kept=history.length===1&&menu.classList.contains('open');
+  setMenuOpen(false);newGame(true);
+  return kept;
+}));
+
+/* 27. 数组形态战绩桶与负数/小数计数被拒绝 */
+ok('数组战绩桶与负数小数计数被归一化',await page.evaluate(()=>{
+  const p=parseRecords({b:[],w:[]});
+  const notArr=!Array.isArray(p.b)&&!Array.isArray(p.w);
+  const bkt={easy:{w:-2,l:1},medium:{w:1.5,l:0}};
+  const r1=recIn(bkt,'easy'),r2=recIn(bkt,'medium');
+  return notArr&&r1.w===0&&r1.l===0&&r2.w===0&&r2.l===0;
+}));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
