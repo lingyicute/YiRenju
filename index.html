@@ -890,6 +890,10 @@ function fourMoves(p,cap){
 /* VCF 静默扩展：深度耗尽后，沿「冲四→强制挡」的强制线继续搜，
    能看见并打出多步连续冲四的必杀/必防序列 */
 let qNodes=0;
+/* 静默搜索的胜负分：入口 qd=VCF_PLY 就是 negamax 的 depth=0 结点，与其速胜分同为 9000000，
+   每深一层少 10 分。旧式 ±(9000000+qd*10) 恒高于叶结点的 ±9000000，
+   视界处的慢胜反而压过速胜、速败反而优于慢败。 */
+function qMate(qd){return 9000000-(VCF_PLY-qd)*10;}
 function qNode(p,alpha,beta,qd,knownWins){
   qNodes++;
   /* 静默子树也受同一时限约束；不能等到第 1024 个结点才首次检查。 */
@@ -898,12 +902,12 @@ function qNode(p,alpha,beta,qd,knownWins){
   /* negamax 在同一盘面已扫描过时直接复用；递归子结点仍独立扫描。 */
   if(boardStones===N*N)return 0; /* 无胜线的满盘是和棋，不是静态优势 */
   const w=knownWins||winPointsBoth(p);
-  if(w.mine.length)return 9000000+qd*10;             /* 轮到我走且有胜点 */
-  if(w.opp.length>1)return -9000000-qd*10;           /* 对方双杀点，堵不住 */
+  if(w.mine.length)return qMate(qd);                 /* 轮到我走且有胜点 */
+  if(w.opp.length>1)return -qMate(qd);               /* 对方双杀点，堵不住 */
   if(w.opp.length===1){                              /* 被迫单挡 */
     const b=w.opp[0];
-    /* 无合法挡点：与对方双杀同一约定带上 qd 加成（越早的败局分越低），否则杀棋线之间的快慢排序失真 */
-    if(p===BLACK){const t=blackLegality(b.x,b.y);if(t!=='ok'&&t!=='win')return -9000000-qd*10;}
+    /* 无合法挡点：与对方双杀同一约定按 qd 计分（越早的败局分越低），否则杀棋线之间的快慢排序失真 */
+    if(p===BLACK){const t=blackLegality(b.x,b.y);if(t!=='ok'&&t!=='win')return -qMate(qd);}
     if(qd<=0)return evalDiff(p);     /* 有合法挡点才允许在静态延伸上限返回估值 */
     pushStone(b.x,b.y,p);                            /* 走 pushStone：本子树的 candidates() 必须看得见这手棋 */
     const v=-qNode(3-p,-beta,-alpha,qd-1);
@@ -1298,7 +1302,7 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
     }
   }
   if(searchAborted)return best;   /* 被时间截断的半截结果不写表，否则会污染同代其它结点 */
-  /* 胜负分不入表：qNode 返回的胜负分为 ±(9000000+qd*10)，并不携带 negamax 的 depth*1000 约定；
+  /* 胜负分不入表：qNode 返回的胜负分按 qd 计（见 qMate），并不携带 negamax 的 depth*1000 约定；
      ttIn/ttOut 按 depth 归一化会使其取回时漂移 ±1000 的整数倍（实测：同一局面复用表后白方被杀线
      分值从 -9000080 变为 -8999090，导致根节点在多条必输着法间的排序错误）。
      胜负分局面重搜代价很小，直接不缓存即可保证结果与表的内容无关。 */
