@@ -66,6 +66,15 @@ await page.locator('#btnUndo').focus();
 await page.keyboard.press('Space');
 await page.waitForTimeout(80);
 ok('Space 在悔棋按钮上触发原生悔棋',(await histLen())===1,'len='+(await histLen()));
+/* 鼠标点过按钮后焦点留在按钮上：Z / R 仍是全局快捷键，不能因此失效 */
+await page.keyboard.press('z');
+await page.waitForTimeout(80);
+ok('悔棋按钮获焦时 Z 仍可悔棋',(await histLen())===0,'len='+(await histLen()));
+await page.evaluate(()=>placeAt(7,7,turn));
+await page.locator('#btnRestart').focus();
+await page.keyboard.press('r');
+await page.waitForTimeout(80);
+ok('重开按钮获焦时 R 仍可重开',(await histLen())===0&&await page.evaluate(()=>!over),'len='+(await histLen()));
 await page.evaluate(()=>newGame());
 await page.locator('#btnMenu').click();
 await page.locator('.menu-item[data-act="help"]').focus();

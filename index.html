@@ -2394,12 +2394,18 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(e.ctrlKey||e.metaKey||e.altKey)return;
-  /* 不劫持按钮/链接/输入框的原生按键：Space/Enter 应触发其 click，
-     方向键也不应在用户操作控件时移动棋盘光标。棋盘本身可通过 Tab 聚焦。 */
   const active=document.activeElement;
-  if(active&&(active.isContentEditable||active.closest('button,a,input,textarea,select,[role="button"],[role="menuitem"],[contenteditable="true"]')))return;
   const tag=(active&&active.tagName)||'';
-  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
+  /* 可输入文字的控件：任何按键都留给原生输入 */
+  if(active&&(active.isContentEditable||tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'))return;
+  /* 悔棋/重开是全局快捷键，须在「控件焦点」判断之前处理：按钮上 Z / R 没有原生行为，
+     而鼠标点过悔棋、重开、难度等按钮后焦点会留在按钮上（Chrome / Windows 均如此），
+     旧实现此时一律不响应快捷键。长按会连发 keydown：只响应首次按下，避免连续悔掉多手或反复重开 */
+  if(k==='z'||k==='Z'){if(!e.repeat)undo();return;}
+  if(k==='r'||k==='R'){if(!e.repeat){newGame();toast('已开始新对局');}return;}
+  /* 不劫持按钮/链接的原生按键：Space/Enter 应触发其 click，
+     方向键也不应在用户操作控件时移动棋盘光标。棋盘本身可通过 Tab 聚焦。 */
+  if(active&&active.closest('button,a,[role="button"],[role="menuitem"]'))return;
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(k))e.preventDefault();
   const mv={
     ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],
@@ -2419,9 +2425,6 @@ document.addEventListener('keydown',e=>{
     if(!over&&!dialogOpenFlag){kbdCursor=true;hover=null;scheduleDraw();} /* 键盘落子或禁手拒落后保留光标 */
     return;
   }
-  /* 长按会连发 keydown：悔棋/重开只响应首次按下，避免一次长按连续悔掉多手或反复重开 */
-  if(k==='z'||k==='Z'){if(!e.repeat)undo();return;}
-  if(k==='r'||k==='R'){if(!e.repeat){newGame();toast('已开始新对局');}return;}
 });
 $('btnUndo').addEventListener('click',undo);
 $('btnRestart').addEventListener('click',()=>{newGame();toast('已开始新对局');});
