@@ -10,7 +10,7 @@ Nebulove 字体子集化 & 内嵌（方式与 YiMines 一致）
   python3 scripts/subset_font.py --all-text          # 保守模式：文件里出现的字符全收
   python3 scripts/subset_font.py --extra-chars glyphs.txt
 """
-import argparse, base64, io, os, re, sys, urllib.request
+import argparse, base64, io, os, re, sys, tempfile, urllib.request
 FONT_URL = "https://raw.githubusercontent.com/lingyicute/Nebulove/main/Nebulove.woff2"
 # 不再写入远程地址
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -64,13 +64,30 @@ def build_subset(chars, ttf_path):
     return data, covered
 
 
-def download(url, path):
-    # 先写临时文件、读完再原子改名：下载中断时不会在缓存路径留下残缺文件，
-    # 否则下次运行会把它当成“已下载的完整字体”直接复用，报出难以理解的解析错误。
+def atomic_write(path, data, binary=True):
     tmp = path + ".part"
-    with urllib.request.urlopen(url, timeout=60) as r, open(tmp, "wb") as f:
-        f.write(r.read())
-    os.replace(tmp, path)
+    try:
+        if binary:
+            with open(tmp, "wb") as f:
+                f.write(data)
+        else:
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+        raise
+
+
+def download(url, path):
+    # 先写临时文件、读完再原子改名：下载中断时清理 .part，不会在缓存路径留下残缺文件，
+    # 否则下次运行会把它当成“已下载的完整字体”直接复用，报出难以理解的解析错误。
+    with urllib.request.urlopen(url, timeout=60) as r:
+        atomic_write(path, r.read(), binary=True)
 
 
 def make_font_face(b64, woff_kb, b64_kb, count, mode):
@@ -99,20 +116,27 @@ def main():
 
     if not os.path.exists(args.html):
         sys.exit("找不到页面文件：%s" % args.html)
-    html = open(args.html, encoding="utf-8").read()
+    with open(args.html, encoding="utf-8") as f:
+        html = f.read()
     if not FONT_FACE_RE.search(html):
         sys.exit("页面里没有找到 @font-face 块，无法替换。")
 
     extra = ""
     if args.extra_chars:
-        extra = open(args.extra_chars, encoding="utf-8").read()
+        if not os.path.exists(args.extra_chars):
+            sys.exit("找不到追加字符文件：%s" % args.extra_chars)
+        with open(args.extra_chars, encoding="utf-8") as f:
+            extra = f.read()
 
     chars = collect_chars(html, all_text=args.all_text, extra=extra)
     mode = "全文本" if args.all_text else "可渲染文本"
     print("可渲染字符：%d 个（%s）" % (len(chars), mode))
 
-    ttf = args.ttf or "/tmp/Nebulove.woff2"
-    if not args.ttf:
+    ttf = args.ttf or os.path.join(tempfile.gettempdir(), "Nebulove.woff2")
+    if args.ttf:
+        if not os.path.exists(ttf):
+            sys.exit("找不到本地字体文件：%s" % ttf)
+    else:
         if os.path.exists(ttf):
             print("复用已下载的完整字体：%s（不重新下载）" % ttf)
         else:
@@ -130,24 +154,21 @@ def main():
               " ".join("U+%04X" % ord(c) for c in sorted(missing)))
 
     if args.check:
-        # --check 不改页面、不在仓库里生成文件；完整字体若已缓存在 /tmp 则直接复用。
+        # --check 不改页面、不在仓库里生成文件；完整字体若已缓存在临时目录则直接复用。
         print("--check：不写入页面及仓库内文件（完整字体缓存在 %s）" % ttf)
         return
 
     keep = os.path.join(HERE, "Nebulove-subset.woff2")
-    open(keep, "wb").write(wofl)
+    atomic_write(keep, wofl, binary=True)
     print("子集文件：%s" % keep)
 
     b64 = base64.b64encode(wofl).decode("ascii")
     new_face = make_font_face(b64, len(wofl) / 1024, len(b64) / 1024, len(covered), mode)
-    new_html, n = FONT_FACE_RE.subn(new_face, html, count=1)
+    new_html, n = FONT_FACE_RE.subn(lambda _: new_face, html, count=1)
     if new_html == html:
         print("页面已经是目标内容，未改动。")
         return
-    tmp_html = args.html + ".part"
-    with open(tmp_html, "w", encoding="utf-8") as f:
-        f.write(new_html)
-    os.replace(tmp_html, args.html)
+    atomic_write(args.html, new_html, binary=False)
     print("已更新 %s（@font-face 替换 %d 处）" % (args.html, n))
     print("页面大小：%.0f KB → %.0f KB" % (len(html.encode()) / 1024, len(new_html.encode()) / 1024))
 
