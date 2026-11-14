@@ -1433,7 +1433,7 @@ function aiChooseRaw(p){
   }
   /* 开局随机：末层全窗精确分不劣于 bestV-1200 的一并入池随机。EPS 取断三（3000）一档之下，
      只交换等价/近等价开局着，不跨形档降强度；送杀闸门仍在更后面兜底。 */
-  if(OPENING&&openScores&&bestV<8900000){
+  if(OPENING&&openScores&&Math.abs(bestV)<8900000){
     const pool=openScores.filter(s=>s[0]>=bestV-1200).map(s=>s[1]);
     if(pool.length>1)best=pool[(Math.random()*pool.length)|0];
   }
