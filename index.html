@@ -464,11 +464,36 @@ function wcTouch(x,y,c,d){       /* d=+1 落子 / -1 撤子；c 为该子颜色 
     a=x-o;e=y+o;if(a>=0&&e<N)t3[b+a*N+e]+=d;
   }
 }
+/* ===== 静态分缓存 EVS / EVD =====
+   evalDiff 是静默搜索每个叶结点都要做的全盘估值，原实现逐子重算 stoneScore（实测占搜索耗时约三成）。
+   一颗子的形态分只取决于同线 ±4 格（分离形窗口与 WC），以及它所在的连段和连段两端：
+   setCell 改动一格时只把这些格标脏，evalDiff 只重算脏子、其余读缓存，结果与逐子重算全等。
+   约定与 WC 相同：整体替换或直写 board 之后须 syncCand()（全部标脏）；
+   裸写格 / wcTemp 的临时试落窗口内不调 evalDiff，故试落不必标脏。 */
+const EVS=new Int32Array(WN),EVD=new Uint8Array(WN).fill(1);
+function evTouch(x,y){
+  EVD[x*N+y]=1;
+  for(let i=0;i<4;i++){
+    const dx=DIRS[i][0],dy=DIRS[i][1];
+    for(let s=-1;s<=1;s+=2){
+      let nx=x+dx*s,ny=y+dy*s;
+      if(!inB(nx,ny))continue;
+      const q=board[nx][ny];
+      let run=q!==EMPTY;          /* 紧贴本格的同色连段：超出 4 格的子仍会经 runInfo 读到本格 */
+      for(let k=1;inB(nx,ny);k++,nx+=dx*s,ny+=dy*s){
+        if(run&&board[nx][ny]!==q)run=false;
+        if(k>4&&!run)break;
+        EVD[nx*N+ny]=1;
+      }
+    }
+  }
+}
 function setCell(x,y,p){
   const old=board[x][y];
   if(old!==p){
     if(old!==EMPTY)wcTouch(x,y,old,-1);
     if(p!==EMPTY)wcTouch(x,y,p,1);
+    evTouch(x,y);
   }
   board[x][y]=p;
   const occupiedDelta=Number(p!==EMPTY)-Number(old!==EMPTY);
@@ -492,13 +517,13 @@ function pushStone(x,y,p){
 function clearBoard(){          /* 原地清零：不重新赋值 board，避免任何已持有的引用失效 */
   zh1=0;zh2=0;
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)board[x][y]=EMPTY;
-  boardStones=0;
+  boardStones=0;EVD.fill(1);
   CAND1.fill(0);CAND2.fill(0);
   for(let i=0;i<4;i++)WC[i].fill(0);
 }
 /* 思考前与真实盘面对齐一次（读档/harness 等路径可能整体替换 board 数组） */
 function syncCand(){
-  boardStones=0;
+  boardStones=0;EVD.fill(1);
   CAND1.fill(0);CAND2.fill(0);
   for(let i=0;i<4;i++)WC[i].fill(0);
   for(let x=0;x<N;x++)for(let y=0;y<N;y++){
@@ -943,13 +968,16 @@ function evalBoard(p){
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]===p)s+=stoneScore(x,y,p);
   return s;
 }
-/* 一次全盘扫描同时得出双方形态分：静默搜索每个结点都要两边各算一遍，合并省一半 */
+/* 一次全盘扫描同时得出双方形态分：静默搜索每个结点都要两边各算一遍，合并省一半。
+   逐子分读 EVS 缓存，只重算被 setCell 标脏的子（见 evTouch）；evalBoard 保持逐子重算，作对照基准。 */
 function evalDiff(p){
   let sb=0,sw=0;
   for(let x=0;x<N;x++)for(let y=0;y<N;y++){
     const v=board[x][y];
-    if(v===BLACK)sb+=stoneScore(x,y,BLACK);
-    else if(v===WHITE)sw+=stoneScore(x,y,WHITE);
+    if(v===EMPTY)continue;
+    const i=x*N+y;
+    if(EVD[i]){EVS[i]=stoneScore(x,y,v);EVD[i]=0;}
+    if(v===BLACK)sb+=EVS[i];else sw+=EVS[i];
   }
   return p===BLACK?sb-sw:sw-sb;
 }
