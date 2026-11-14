@@ -2360,10 +2360,10 @@ document.addEventListener('keydown',e=>{
     return;
   }
   const k=e.key;
-  /* Escape 仍可关闭菜单；把焦点还给菜单按钮，避免焦点留在已隐藏菜单项上。 */
-  if(k==='Escape'&&menu.classList.contains('open')){
-    setMenuOpen(false);
-    $('btnMenu').focus();
+  /* 菜单展开时屏蔽棋盘快捷键（Safari 点击按钮不移交焦点时焦点仍在 body 上），
+     同时放行原生 Tab / 菜单项按钮激活；Escape 关闭菜单并把焦点还给菜单按钮。 */
+  if(menu.classList.contains('open')){
+    if(k==='Escape'){setMenuOpen(false);$('btnMenu').focus();}
     return;
   }
   if(e.ctrlKey||e.metaKey||e.altKey)return;
