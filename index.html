@@ -255,9 +255,14 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
   header{padding:12px 14px}
   main{padding:2px 14px 32px}
 }
-@media (max-width:340px){
+/* 360px 以下「AI 思考中…」放不进回合卡片（实测 320–333px 与 341–356px 两段都会被截断）：
+   断点上移到 359px，并把计时卡片、圆按钮与内边距各让出几像素给回合文字 */
+@media (max-width:359px){
   .stats-row{gap:6px}
-  .stat-value{font-size:16px}
+  .stat-value{font-size:16px;gap:6px}
+  .stat-card{padding-inline:10px}
+  .stat-card.accent{min-width:54px;padding-inline:7px}
+  .btn-round{width:44px;height:44px}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important;transition-duration:.01ms !important}
