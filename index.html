@@ -542,31 +542,50 @@ function dirScore(c,o,side){
    这里对包含本子的每个 5 格窗口补算：窗口内无对方子，且己方子之间有空隙时才计分
    （连续棋形仍由 dirScore 负责，不重复计分）。断四的威胁与连续冲四相当。 */
 const SPLIT3=3000,SPLIT4=12000;
+/* 5 格窗口内己方子 5 位掩码的分离形查表：非连续的 3 子记 SPLIT3、4 子记 SPLIT4，其余记 0 */
+const SPLIT_LUT=new Int32Array(32);
+for(let m=0;m<32;m++){
+  let k=0,mn=5,mx=-1;
+  for(let i=0;i<5;i++)if(m&(1<<i)){k++;if(i<mn)mn=i;if(i>mx)mx=i;}
+  if(k>=3&&mx-mn+1!==k)SPLIT_LUT[m]=k===4?SPLIT4:SPLIT3;
+}
+function splitScoreRaw(x,y,dx,dy,p){
+  const op=3-p,cv=board[x][y];
+  if(cv===op)return 0;
+  let lo=-4,hi=0,pm=cv===p?16:0;
+  for(let t=-1;t>=-4;t--){
+    const nx=x+dx*t,ny=y+dy*t;
+    if(!inB(nx,ny)){lo=t+1;break;}
+    const v=board[nx][ny];
+    if(v===op){lo=t+1;break;}
+    if(v===p)pm|=1<<(t+4);
+  }
+  for(let t=1;t<=4;t++){
+    const nx=x+dx*t,ny=y+dy*t;
+    if(!inB(nx,ny)){hi=t-5;break;}
+    const v=board[nx][ny];
+    if(v===op){hi=t-5;break;}
+    if(v===p)pm|=1<<(t+4);
+  }
+  if(lo>hi)return 0;
+  let s=0;
+  for(let o=lo;o<=hi;o++)s+=SPLIT_LUT[(pm>>(o+4))&31];
+  return s;
+}
 function splitScore(x,y,dx,dy,p){
   /* 下界筛（与 winCount 在禁手判定里的用法同构）：分离形至少要有 3 个己方子落在某个
-     含 (x,y) 的 5 格窗内，(x,y) 占 1 子，其余子必在 ±4 内 ⇒ 同色邻子不足 2 直接放弃
-     5×5 窗扫描。orderedMoves→evalPoint 是搜索的第一热点，中盘大多数方向过不了这道筛子。 */
+     含 (x,y) 的 5 格窗内，(x,y) 占 1 子，其余子必在 ±4 内 ⇒ 同色邻子不足 2 直接放弃。 */
   if(winCount(x,y,dx,dy,p)<2)return 0;
-  const op=3-p;let s=0;
-  for(let o=-4;o<=0;o++){            /* 窗口起点：窗口覆盖 (x,y) */
-    let k=0,mn=5,mx=-5,ok=true;
-    for(let t=o;t<o+5;t++){
-      const nx=x+dx*t,ny=y+dy*t;
-      if(!inB(nx,ny)){ok=false;break;}
-      const v=board[nx][ny];
-      if(v===op){ok=false;break;}
-      if(v===p){k++;if(t<mn)mn=t;if(t>mx)mx=t;}
-    }
-    if(!ok||k<3||mx-mn+1===k)continue;   /* 对方挡住 / 子数不足 / 连续（已由 dirScore 计入） */
-    s+=k===4?SPLIT4:SPLIT3;
-  }
-  return s;
+  return splitScoreRaw(x,y,dx,dy,p);
 }
 function stoneScore(x,y,p){
   let s=0;
-  for(const d of DIRS){
-    const r=runInfo(x,y,d[0],d[1],p);
-    s+=dirScore(r[0],r[1],p)+splitScore(x,y,d[0],d[1],p);
+  const off=(p===BLACK?0:WN)+x*N+y;
+  for(let i=0;i<4;i++){
+    const d=DIRS[i],dx=d[0],dy=d[1];
+    const r=runInfo(x,y,dx,dy,p);
+    s+=dirScore(r[0],r[1],p);
+    if(WC[i][off]>=2)s+=splitScoreRaw(x,y,dx,dy,p);
   }
   return s;
 }
