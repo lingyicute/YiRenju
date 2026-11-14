@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-192%20KiB-blue" alt="Self-contained HTML, approximately 192 KiB"></a>
+  <a href="./index.html"><img src="https://img.shields.io/badge/Single%20File-194%20KiB-blue" alt="Self-contained HTML, approximately 194 KiB"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Runtime%20Setup-None-brightgreen" alt="No runtime setup"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/badge/Network%20Requests-Zero-brightgreen" alt="Zero network requests"></a>
   <a href="https://github.com/lingyicute/YiRenju"><img src="https://img.shields.io/github/stars/lingyicute/YiRenju?style=flat&color=yellow" alt="GitHub Stars"></a>
