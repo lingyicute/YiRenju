@@ -1468,17 +1468,18 @@ function MODES_OK(m){return Object.prototype.hasOwnProperty.call(MODE_LABEL,m);}
 /* 执子：humanP 为玩家执子，aiP 为 AI 执子（aiP=3-humanP） */
 let humanP=settings.side==='W'?WHITE:BLACK,aiP=3-humanP;
 function DEFREC(){return {easy:{w:0,l:0},medium:{w:0,l:0},hard:{w:0,l:0},expert:{w:0,l:0}};}
+const isPlainObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 /* 战绩按玩家执子分桶：b=玩家执黑，w=玩家执白；旧平铺结构视为执黑迁移 */
 function parseRecords(r){
-  if(r&&r.b&&r.w&&typeof r.b==='object'&&typeof r.w==='object')return r;
-  return {b:Object.assign(DEFREC(),r||{}),w:DEFREC()};
+  if(isPlainObj(r)&&isPlainObj(r.b)&&isPlainObj(r.w))return r;
+  return {b:Object.assign(DEFREC(),isPlainObj(r)?r:null),w:DEFREC()};
 }
 let records=parseRecords(LS.get('records',null));
 /* 多个标签页同开时，各页内存里的战绩副本互不知晓，整体回写会抹掉别页刚记下的胜负：
    改写或展示前先与存储对齐。读不到（存储不可用或从未写过）就沿用内存副本，本次会话的计数照常累加。 */
 function syncRecords(){const r=LS.get('records',null);if(r!=null)records=parseRecords(r);}
-/* 存储里的战绩条目可能被改坏：非数字的 w/l 会让胜率算出 NaN，字符串还会被原样拼进弹窗 HTML；读取一律经此校验 */
-function recIn(bkt,k){const v=bkt[k];return (v&&typeof v==='object'&&Number.isFinite(v.w)&&Number.isFinite(v.l))?v:(bkt[k]={w:0,l:0});}
+/* 存储里的战绩条目可能被改坏：非数字/负数/小数的 w/l 会让胜率失真，字符串还会被原样拼进弹窗 HTML；读取一律经此校验 */
+function recIn(bkt,k){const v=bkt[k];return (isPlainObj(v)&&Number.isInteger(v.w)&&v.w>=0&&Number.isInteger(v.l)&&v.l>=0)?v:(bkt[k]={w:0,l:0});}
 function recOf(k){return recIn(humanP===BLACK?records.b:records.w,k);}
 
 /* 与 CSS 中 --acc-deep 保持一致的深色调（浅色主题主按钮/容器用） */
