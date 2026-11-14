@@ -2049,6 +2049,7 @@ function undo(){
 const scrim=$('scrim'),dialog=$('dialog');
 let dialogOpenFlag=false,dlgFocusTid=0;
 function openDialog(html){
+  if(menu.classList.contains('open'))setMenuOpen(false);
   dialog.innerHTML=html;
   scrim.hidden=false;dialogOpenFlag=true;
   dialog.scrollTop=0;   /* 弹窗容器是复用的：不归零会沿用上一个弹窗滚到的位置，小屏上新弹窗的标题被卷出视野 */
