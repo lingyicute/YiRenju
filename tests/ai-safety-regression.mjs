@@ -157,5 +157,65 @@ test('guard timeout fails open without leaking search state',()=>{
   assert.equal(r.deadline,321);
   assert.equal(r.aborted,false);
 });
+test('aiChooseRaw clears stale killer table between searches',()=>{
+  const r=run(rootSetup+`
+  KILL.fill(42);
+  negamax=()=>0;
+  aiChooseRaw(WHITE);
+  return KILL.every(k=>k===-1);`);
+  assert.equal(r,true);
+});
+test('opening random pool excludes forced losses to avoid picking faster mates',()=>{
+  const r=run(rootSetup+`
+  negamax=(d,a,b,p,x,y)=>y===7?9004000:9003000;
+  return aiChooseRaw(WHITE);`);
+  assert.deepEqual(r,{x:7,y:8});
+});
+test('guardSafe zero-window probe agrees with full-window VCF check',()=>{
+  const r=run(`
+  for(const [x,y] of [[5,5],[5,6],[5,7],[9,5],[9,6],[9,7]])pushStone(x,y,WHITE);
+  pushStone(12,12,BLACK);
+  const cands=[{x:0,y:0},{x:5,y:4},{x:5,y:8},{x:9,y:4}];
+  return cands.every(mv=>{
+    const fast=guardSafe(BLACK,mv,1000);
+    pushStone(mv.x,mv.y,BLACK);
+    searchDeadline=Infinity;searchAborted=false;
+    const full=qNode(WHITE,-Infinity,Infinity,GUARD_DEPTH*2)<8900000;
+    pushStone(mv.x,mv.y,EMPTY);
+    return fast===full;
+  });`);
+  assert.equal(r,true);
+});
+test('splitScore bitmask LUT matches naive 5x5 scan across seeded boards',()=>{
+  const r=run(`
+  function naiveSplit(x,y,dx,dy,p){
+    if(winCount(x,y,dx,dy,p)<2)return 0;
+    const op=3-p;let s=0;
+    for(let o=-4;o<=0;o++){
+      let k=0,mn=5,mx=-5,ok=true;
+      for(let t=o;t<o+5;t++){
+        const nx=x+dx*t,ny=y+dy*t;
+        if(!inB(nx,ny)){ok=false;break;}
+        const v=board[nx][ny];
+        if(v===op){ok=false;break;}
+        if(v===p){k++;if(t<mn)mn=t;if(t>mx)mx=t;}
+      }
+      if(!ok||k<3||mx-mn+1===k)continue;
+      s+=k===4?SPLIT4:SPLIT3;
+    }
+    return s;
+  }
+  let seed=20260417,bad=0;
+  const rnd=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2**32;};
+  for(let g=0;g<20;g++){
+    clearBoard();
+    for(let x=0;x<N;x++)for(let y=0;y<N;y++){const v=rnd();if(v<0.22)setCell(x,y,BLACK);else if(v<0.44)setCell(x,y,WHITE);}
+    for(let x=0;x<N;x++)for(let y=0;y<N;y++)for(const d of DIRS)for(const p of [BLACK,WHITE]){
+      if(splitScore(x,y,d[0],d[1],p)!==naiveSplit(x,y,d[0],d[1],p))bad++;
+    }
+  }
+  return bad;`);
+  assert.equal(r,0);
+});
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exitCode=failed?1:0;
