@@ -181,7 +181,7 @@ Individual suites:
 # Offline / self-bootstrap contract, incl. embedded-font glyph coverage — zero dependencies
 node tests/offline-contract.mjs
 
-# Rule engine & AI unit tests — 70 assertions, zero dependencies
+# Rule engine & AI unit tests — 71 assertions, zero dependencies
 node tests/renju-core-test.mjs
 
 # Transposition-table regression — win/loss scores must not drift when the table is reused
