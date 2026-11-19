@@ -599,9 +599,12 @@ const animQueued=()=>page.evaluate(()=>{
   const q=drawQueued;newGame(true);return q;
 });
 const animDefault=await animQueued();
+/* Firefox / WebKit 里已创建的 MediaQueryList 要到下一次渲染更新才刷新 matches：等页面看到新取值再断言 */
 await page.emulateMedia({reducedMotion:'reduce'});
+await page.waitForFunction(()=>reducedMotionMQ.matches);
 const animReduced=await animQueued();
 await page.emulateMedia({reducedMotion:null});
+await page.waitForFunction(()=>!reducedMotionMQ.matches);
 ok('减少动态效果时 canvas 不播落子缩放',animDefault===true&&animReduced===false,`default=${animDefault} reduced=${animReduced}`);
 await page.evaluate(()=>{history.length=0;localStorage.clear();});
 
