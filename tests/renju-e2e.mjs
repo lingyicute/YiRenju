@@ -37,7 +37,7 @@ await page.waitForTimeout(300);
 
 /* 1. 品牌 */
 ok('title 含 YiRenju',(await page.title()).includes('YiRenju'),await page.title());
-ok('brand-name=YIRenju',(await page.textContent('.brand-name')).trim()==='YiRenju');
+ok('brand-name=YiRenju',(await page.textContent('.brand-name')).trim()==='YiRenju');
 ok('h1=五子棋 · 连珠',(await page.textContent('h1')).includes('五子棋 · 连珠'),await page.textContent('h1'));
 ok('subtitle 无连珠规则小字',!(await page.textContent('#subtitle')).includes('连珠规则'));
 ok('菜单首项=什么是连珠？',(await page.textContent('.menu .menu-item')).includes('什么是连珠'));
@@ -91,7 +91,7 @@ await page.evaluate(()=>{setMode('ai-easy');newGame();});
 
 /* P0 回归：执白 + 存档停在人类回合时刷新页面，恢复后不得冻结（aiThinking 不得卡死） */
 await page.evaluate(()=>{
-  history.length=0; /* 阻止 visibilitychange/beforeunload 在 reload 时用内存对局覆盖刚写入的存档 */
+  history.length=0; /* 阻止 visibilitychange/pagehide 在 reload 时用内存对局覆盖刚写入的存档 */
   localStorage.setItem('yirenju.settings',JSON.stringify({side:'W',mode:'ai-easy'}));
   localStorage.setItem('yirenju.session',JSON.stringify({mode:'ai-easy',over:false,side:'W',elapsed:0,
     moves:[{x:7,y:7},{x:8,y:8},{x:7,y:9}]}));
