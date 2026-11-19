@@ -2341,7 +2341,7 @@ function eventCell(e){
   return {x,y};
 }
 const FOUL_LABEL={'33':'三三禁手','44':'四四禁手','overline':'长连禁手'};
-/* 人类（仅黑方）落子入口：连珠禁手校验，违规则拒绝落子并提示 */
+/* 人类落子入口（人机与双人共用）：轮到黑方时先做连珠禁手校验，违规则拒绝落子并提示 */
 function tryHumanPlace(c){
   if(dialogOpenFlag||!c||over||aiThinking)return false;
   if(mode!=='pvp'&&turn!==humanP)return false;
