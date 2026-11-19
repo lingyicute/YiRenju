@@ -296,6 +296,13 @@ ok('配色弹窗自动聚焦当前色块且关闭后归还焦点至棋盘',await
   closeDialog();applyAccent('purple');
   return focusedInDlg&&document.activeElement===document.getElementById('board');
 }));
+ok('配色色块的提示与读屏名称为中文色名',await page.evaluate(()=>{
+  showPalette();
+  const sw=[...dialog.querySelectorAll('.swatch')];
+  const names=sw.map(b=>b.getAttribute('aria-label')).join(),titled=sw.every(b=>b.title===b.getAttribute('aria-label'));
+  closeDialog();
+  return titled&&names==='紫色,蓝色,青色,绿色,黄色,橙色,粉色,红色';
+}));
 ok('新弹窗从顶部开始，不沿用上一个弹窗的滚动位置',await page.evaluate(async()=>{
   dialog.style.maxHeight='160px';      /* 桌面视口下内容放得下，压低高度上限以制造滚动 */
   showHelp();dialog.scrollTop=9999;

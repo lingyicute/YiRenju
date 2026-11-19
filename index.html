@@ -408,6 +408,9 @@ const LS={
   set(k,v){try{localStorage.setItem('yirenju.'+k,JSON.stringify(v));}catch(e){}}
 };
 const ACCENTS={purple:'#a78bfa',blue:'#82aaff',teal:'#5edfd0',green:'#6fdc8c',yellow:'#ecc64f',orange:'#f6ad7b',pink:'#f17bb0',red:'#ef6f6f'};
+/* 色名只出现在色块的 title / aria-label 里（浏览器提示与读屏播报，不经页面字体渲染）：
+   写成转义序列，源码里不出现这些字，内嵌字体子集就不必为它们加字形 */
+const ACCENT_NAME={purple:'\u7d2b\u8272',blue:'\u84dd\u8272',teal:'\u9752\u8272',green:'\u7eff\u8272',yellow:'\u9ec4\u8272',orange:'\u6a59\u8272',pink:'\u7c89\u8272',red:'\u7ea2\u8272'};
 /* 只认自有键：ACCENTS[a] 对 'constructor'、'toString'、'__proto__' 等原型键也为真 */
 const isAccent=a=>Object.prototype.hasOwnProperty.call(ACCENTS,a);
 const MODE_LABEL={'ai-easy':'简单','ai-medium':'中等','ai-hard':'困难','ai-expert':'专家','pvp':'双人'};
@@ -2206,7 +2209,7 @@ function showPalette(){
   $('btnPalette').classList.add('active');
   const cur=document.documentElement.dataset.accent;
   const sw=Object.entries(ACCENTS).map(([k,c])=>`
-    <button class="swatch ${k===cur?'sel':''}" data-accent="${k}" aria-pressed="${k===cur}" style="background:${c};color:${c}" title="${k}">
+    <button class="swatch ${k===cur?'sel':''}" data-accent="${k}" aria-pressed="${k===cur}" style="background:${c};color:${c}" title="${ACCENT_NAME[k]}" aria-label="${ACCENT_NAME[k]}">
       ${k===cur?'<svg class="ck" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>':''}
     </button>`).join('');
   openDialog(`
