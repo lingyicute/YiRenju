@@ -114,6 +114,15 @@ api.setMode('ai-medium');
   eq('medium 强制唯一必挡',!!mv&&mv.x===7&&mv.y===7,true);
 }
 
+/* (l2) 对方活四（两个成五点）堵不住也要堵其一：困难/专家曾因必败同分随机而走到无关的点上 */
+blank();put([[4,7],[5,7],[6,7],[7,7]],BLACK);put([[4,8],[5,8],[6,6]],WHITE);
+eq('中等及以上面对活四仍堵成五点',['ai-medium','ai-hard','ai-expert'].every(md=>{
+  api.setMode(md);
+  for(let k=0;k<4;k++){const mv=api.aiChoose(WHITE);if(!mv||mv.y!==7||(mv.x!==3&&mv.x!==8))return false;}
+  return true;
+}),true);
+api.setMode('ai-easy');
+
 /* (m) orderedMoves(BLACK) 产出全程合法（含兜底逻辑不返回禁手） */
 blank();put([[6,7],[8,7],[7,6],[7,8]],BLACK);put([[2,2],[12,12]],WHITE);
 eq('orderedMoves 黑全合法',api.orderedMoves(BLACK,12).every(m=>['ok','win'].includes(api.blackLegality(m.x,m.y))),true);
