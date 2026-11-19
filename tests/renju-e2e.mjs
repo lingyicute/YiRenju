@@ -170,9 +170,7 @@ await page.evaluate(()=>{
 await page.reload({waitUntil:'load'});await page.waitForTimeout(250);
 await waitAnn('已恢复对局');
 ok('恢复存档播报真实局面',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('已恢复对局，共 3 手'));
-/* 光标落在禁手点要有禁手提示（复用第 2 段的禁手局面） */
-
-/* 2. PvP：三三禁手拒绝落子 + ×标记 */
+/* 2. PvP：三三禁手拒绝落子 + ×标记；光标停在禁手点的提示也在这一局面上验 */
 await page.evaluate(()=>{setMode('pvp');newGame();});
 for(const [x,y] of [[6,7],[13,13],[8,7],[13,12],[7,6],[13,11],[7,8],[12,13]])await clickCell(x,y);
 const fs=await page.evaluate(()=>({size:foulSet.size,has119:foulSet.has(7*16+7)}));
