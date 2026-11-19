@@ -1352,10 +1352,15 @@ function aiChooseRaw(p){
   /* 能赢先赢 */
   const wp=p===WHITE?fivePoint(WHITE):blackWinPoint();
   if(wp)return wp;
-  /* 中等及以上：不允许随机放弃唯一的合法必挡点（活四/双杀无法单挡时除外） */
+  /* 中等及以上：不允许随机放弃唯一的合法必挡点。对方已有两个成五点（活四/双杀）时堵不住，
+     但每一手都是一步败，搜索得到的全是同分，同分随机会走到毫不相干的点上：与简单档一样任堵其一 */
   if(mode!=='ai-easy'){
     const opWins=winPointsAll(op);
     if(opWins.length===1&&isLegalMoveAt(p,opWins[0].x,opWins[0].y))return opWins[0];
+    if(opWins.length>=2){
+      const b=opWins.filter(w=>isLegalMoveAt(p,w.x,w.y));
+      if(b.length)return b[(Math.random()*b.length)|0];
+    }
   }
   /* 困难及专家：VCT 给出攻击/防守提示，统一交给主搜索验证，而非直接认定必胜。 */
   if(VCT_ENABLED&&(mode==='ai-hard'||mode==='ai-expert')){
