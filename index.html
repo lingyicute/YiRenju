@@ -1677,7 +1677,7 @@ function drawBoard(){
   /* 禁手点标记：轮到黑棋时把禁手点以 × 标出 */
   if(foulSet.size&&!over){
     ctx.save();
-    ctx.strokeStyle=pal.primary;ctx.globalAlpha=0.62;
+    ctx.strokeStyle=pal.primary;ctx.globalAlpha=0.8;
     ctx.lineWidth=Math.max(1.6,g*0.05);ctx.lineCap='round';
     const fr=g*0.18;
     for(const key of foulSet){
