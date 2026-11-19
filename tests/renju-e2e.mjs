@@ -144,16 +144,16 @@ await page.locator('#board').focus();
 await page.evaluate(()=>{cursor={x:7,y:7};kbdCursor=false;});
 await page.keyboard.press('ArrowRight');
 await waitAnn('光标');
-ok('方向键移动光标有播报',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('光标 J8'));
-ok('列字母跳过 I',await page.evaluate(()=>{
-  const o=[];for(let x=0;x<15;x++)o.push(coordLabel(x,0)[0]);return o.join('')==='ABCDEFGHJKLMNOP';
+ok('方向键移动光标有播报',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('光标 I8'));
+ok('列字母为 RIF 记谱的 A–O（不跳过 I）',await page.evaluate(()=>{
+  const o=[];for(let x=0;x<15;x++)o.push(coordLabel(x,0)[0]);return o.join('')==='ABCDEFGHIJKLMNO';
 }));
 await page.evaluate(()=>{setMode('pvp');newGame();placeAt(0,14,turn);});
 await waitAnn('A1');
 ok('左下角播报 A1（行号自底部起算）',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('A1'));
 await page.evaluate(()=>placeAt(14,0,turn));
-await waitAnn('P15');
-ok('右上角播报 P15',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('P15'));
+await waitAnn('O15');
+ok('右上角播报 O15',(await page.$eval('#a11yStatus',e=>e.textContent)).includes('O15'));
 ok('同批播报合并而非丢弃（新局+落子都保留）',await page.evaluate(async()=>{
   setMode('pvp');newGame();placeAt(7,7,1);
   await new Promise(r=>setTimeout(r,150));

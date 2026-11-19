@@ -353,7 +353,7 @@ h1{font-size:38px;font-weight:800;letter-spacing:1px}
 
   <section class="board-wrap" id="boardWrap">
     <canvas id="board" tabindex="0" role="application" aria-label="15×15 连珠棋盘。使用方向键或 WASD 移动光标，空格或回车落子" aria-describedby="boardHelp"></canvas>
-    <p class="sr-only" id="boardHelp">黑棋先行且有三三、四四、长连三种禁手，禁手点在棋盘上以叉号标出。坐标的列是 A 到 P（跳过 I），行是自棋盘底部向上数的 1 到 15。每一手棋的坐标、手数与轮到哪一方，以及光标所在格与禁手情况，都会由本页的实时状态区播报。</p>
+    <p class="sr-only" id="boardHelp">黑棋先行且有三三、四四、长连三种禁手，禁手点在棋盘上以叉号标出。坐标的列是 A 到 O（不跳过 I），行是自棋盘底部向上数的 1 到 15。每一手棋的坐标、手数与轮到哪一方，以及光标所在格与禁手情况，都会由本页的实时状态区播报。</p>
   </section>
 
   <section class="tools">
@@ -1788,8 +1788,8 @@ function stopTimer(){
 /* ================= HUD ================= */
 /* 屏幕阅读器状态播报：canvas 本身不提供棋盘语义，用 aria-live 区域
    逐手播报坐标、手数、轮次、禁手拒绝、悔棋与终局。 */
-const LETTERS='ABCDEFGHJKLMNOP';          /* 列坐标跳过 I，与围棋记谱一致 */
-/* 记谱惯例：列为 A–P（跳过 I），行号自棋盘底部向上数，与 RIF 记谱一致 */
+/* RIF 记谱：列为 A–O（不像围棋记谱那样跳过 I），行号自棋盘底部向上数，天元即 H8 */
+const LETTERS='ABCDEFGHIJKLMNO';
 const coordLabel=(x,y)=>(LETTERS[x]||'?')+(N-y);
 const sideName=p=>p===BLACK?'黑棋':'白棋';
 let announceTid=0;
