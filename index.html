@@ -945,12 +945,6 @@ function hashFromBoard(){
   zh1=0;zh2=0;
   for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(board[x][y]!==EMPTY)hashPlace(x,y,board[x][y]);
 }
-/* 胜负分归一化：胜负分携带深度加成（±(9000000+depth*1000)），直接入表会在跨深度
-   取回时漂移——同一条胜线在不同剩余深度下分值不同，会反过来偏爱慢胜/急败。
-   存表剥掉深度加成、取回按当前深度加回，使 TT 胜负分与发现深度无关。
-   |v|>8900000 一律按胜负分处理（百步内不变号），其余分值原样存取。 */
-function ttIn(v,d){return v>8900000?v-d*1000:v<-8900000?v+d*1000:v;}
-function ttOut(v,d){return v>8900000?v+d*1000:v<-8900000?v-d*1000:v;}
 /* 每个格点一个共享的 [x,y]：candidates() 不必再为每个候选点新分配坐标对。
    它是调用最频繁的函数之一（每个搜索结点的取胜点扫描、冲四着法与排序都要走一遍），
    原实现一次搜索要喂给 GC 海量短命的 [x,y]。调用方一律只读，切勿改写返回的坐标对。 */
@@ -1242,7 +1236,7 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
   let ttMove=null;
   if(e&&e.k1===k1&&e.k2===k2&&e.dn===ttDraft){
     if(e.d>=depth){
-      const ev=ttOut(e.v,depth);
+      const ev=e.v;
       if(e.f===0)return ev;
       if(e.f===1&&ev<=alpha)return ev;
       if(e.f===2&&ev>=beta)return ev;
@@ -1302,19 +1296,19 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
     }
   }
   if(searchAborted)return best;   /* 被时间截断的半截结果不写表，否则会污染同代其它结点 */
-  /* 胜负分不入表：qNode 返回的胜负分按 qd 计（见 qMate），并不携带 negamax 的 depth*1000 约定；
-     ttIn/ttOut 按 depth 归一化会使其取回时漂移 ±1000 的整数倍（实测：同一局面复用表后白方被杀线
-     分值从 -9000080 变为 -8999090，导致根节点在多条必输着法间的排序错误）。
-     胜负分局面重搜代价很小，直接不缓存即可保证结果与表的内容无关。 */
+  /* 胜负分不入表：negamax 的胜负分带 depth*1000 加成，qNode 的按 qd 计（见 qMate），两种约定并存，
+     无法用同一种深度归一化存取——旧版按 depth 归一化入表，qNode 的胜负分取回时漂移 ±1000 的整数倍
+     （实测：复用表后白方被杀线分值从 -9000080 变为 -8999090，根节点在多条必输着法间排序错误）。
+     胜负分局面重搜代价很小，不缓存即可保证结果与表的内容无关；表里因此只有普通估值，原样存取。 */
   if(Math.abs(best)>8900000)return best;
   if(!TT_DEPTH_PREF){
-    TT[ti]={k1,k2,dn:ttDraft,d:depth,v:ttIn(best,depth),f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
+    TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
   }else{
     /* ⑲-d 深度优先替换：碰撞槽里不同局面的更深条目优先保留——
        无条件覆盖会让一次浅层搜索挤掉迭代加深最想复用的深层结果。 */
     const old=TT[ti];
     if(!old||(old.k1===k1&&old.k2===k2)||old.dn!==ttDraft||old.d<=depth)
-      TT[ti]={k1,k2,dn:ttDraft,d:depth,v:ttIn(best,depth),f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
+      TT[ti]={k1,k2,dn:ttDraft,d:depth,v:best,f:best<=a0?1:(best>=beta?2:0),m:[bx,by]};
   }
   return best;
 }
