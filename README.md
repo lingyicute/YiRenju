@@ -219,7 +219,7 @@ node tests/renju-e2e.mjs
 
 In CI this job runs inside `mcr.microsoft.com/playwright:v1.64.1-noble`, where the headless shell and all system fonts are preinstalled — no `apt-get` or browser download at run time. The e2e script honours `PLAYWRIGHT_BROWSERS_PATH` (used by that image) as well as the local `~/.cache/ms-playwright` cache.
 
-The unit and smoke suites assert on Renju rules, forbidden moves, and every AI search layer; the e2e suite additionally checks DOM behavior (foul markers, dialogs, records, aria-live announcements, cursor announcements). On every push and pull request, GitHub Actions runs the eight `core-and-smoke` suites plus the Playwright browser suite in a second job. The two diagnostic scripts — `ai-tournament.mjs` (strength benchmark, minutes long) and `ai-review-bench.mjs` (old-vs-new search comparison) — are report-only and are **not** part of CI.
+The unit and smoke suites assert on Renju rules, forbidden moves, and every AI search layer; the e2e suite additionally checks DOM behavior (foul markers, dialogs, records, aria-live announcements, cursor announcements). On every push to `main` and on every pull request, GitHub Actions runs the eight `core-and-smoke` suites plus the Playwright browser suite in a second job. The two diagnostic scripts — `ai-tournament.mjs` (strength benchmark, minutes long) and `ai-review-bench.mjs` (old-vs-new search comparison) — are report-only and are **not** part of CI.
 
 <br>
 
