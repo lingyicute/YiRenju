@@ -1340,8 +1340,8 @@ function guardBest(p,root,deadline){
   }
   return null;
 }
-/* AI 选择着点（内部实现）。p 为 AI 执子（黑方着法自动经过禁手过滤） */
 function stonesOnBoard(){return boardStones;}
+/* AI 选择着点（内部实现）。p 为 AI 执子（黑方着法自动经过禁手过滤） */
 function aiChooseRaw(p){
   const op=3-p;
   let vctWin=null;
