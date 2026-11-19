@@ -120,7 +120,7 @@ eq('orderedMoves 黑全合法',api.orderedMoves(BLACK,12).every(m=>['ok','win'].
 
 /* (n) aiChoose 终检防线：黑方返回必合法（全难度抽查） */
 blank();put([[6,7],[8,7],[7,6],[7,8],[4,4],[10,10]],BLACK);put([[2,2],[12,12],[3,9]],WHITE);
-eq('aiChoose 全难度黑合法',['ai-easy','ai-medium'].every(md=>{
+eq('aiChoose 全难度黑合法',['ai-easy','ai-medium','ai-hard','ai-expert'].every(md=>{
   api.setMode(md);const mv=api.aiChoose(BLACK);
   return mv&&['ok','win'].includes(api.blackLegality(mv.x,mv.y));
 }),true);
