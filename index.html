@@ -1824,8 +1824,8 @@ function announceMove(x,y,p){
 function announceCursor(){
   if(over)return;
   const at=coordLabel(cursor.x,cursor.y),occ=board[cursor.x][cursor.y];
-  if(mode!=='pvp'&&turn!==humanP){announce(`光标 ${at}。`);return;}
   if(occ!==EMPTY){announce(`光标 ${at}，已有${sideName(occ)}。`);return;}
+  if(mode!=='pvp'&&turn!==humanP){announce(`光标 ${at}。`);return;}
   let note='';
   if(turn===BLACK){
     const t=blackLegality(cursor.x,cursor.y);
