@@ -691,6 +691,33 @@ ok('单桶损坏的战绩保留完好桶且不嵌套 b/w 键',await page.evaluat
   return p.b.easy.w===3&&p.b.easy.l===1&&!('b' in p.b)&&!('w' in p.b)&&!Array.isArray(p.w);
 }));
 
+/* 28. 恢复棋子无缩放动画、AI 回合光标报子、长按空格/回车防连发 */
+ok('恢复的棋子不触发落子缩放动画',await page.evaluate(()=>{
+  setMode('pvp');newGame(true);
+  setCell(7,7,BLACK);history.push({x:7,y:7,p:BLACK,at:null});
+  drawQueued=false;drawBoard();
+  const q=drawQueued;newGame(true);return q===false;
+}));
+ok('AI 回合光标移到已有棋子时仍播报棋子',await page.evaluate(async()=>{
+  setMode('ai-easy');applySide('B');newGame(true);
+  setCell(7,7,BLACK);turn=WHITE;cursor={x:7,y:7};kbdCursor=true;
+  announceCursor();
+  await new Promise(r=>setTimeout(r,150));
+  const t=document.getElementById('a11yStatus').textContent;
+  newGame(true);
+  return t.includes('光标 H8，已有黑棋');
+}));
+ok('长按空格或回车触发的重复按键不会落子',await page.evaluate(()=>{
+  setMode('pvp');newGame(true);
+  cursor={x:7,y:7};kbdCursor=true;
+  document.getElementById('board').focus();
+  document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',repeat:true,bubbles:true}));
+  document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',repeat:true,bubbles:true}));
+  const empty=history.length===0;
+  newGame(true);
+  return empty;
+}));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
 process.exit(fail?1:0);
