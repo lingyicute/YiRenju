@@ -1415,7 +1415,7 @@ function aiChooseRaw(p){
   if(!root.length)return null;
   if(root.length===1)return {x:root[0].x,y:root[0].y};
   let best=staticBest||root[0],bestV=-Infinity;
-  /* P1 开局多样性：≤8 子时根节点改用全窗口逐手精确打分，末层分值接近者入池随机——
+  /* P1 开局多样性：不足 8 子（前 8 手）时根节点改用全窗口逐手精确打分，末层分值接近者入池随机——
      老版本的同分随机从未触发过（每层都有严格唯一最优），Expert 开局是一套固定谱。 */
   const OPENING=stonesOnBoard()<8;let openScores=null;
   for(const depth of cfg.d){
