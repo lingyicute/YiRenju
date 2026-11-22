@@ -213,7 +213,7 @@ node tests/ai-tournament.mjs
 # Browser end-to-end UI tests — 107 assertions (one-time setup required)
 python3 -m http.server 8600     # serve this directory
 npm i --no-save playwright-core # --no-save: keep package.json dependency-free
-npx playwright-core install chromium-headless-shell
+npx playwright-core install chromium-headless-shell  # bare Linux: add --with-deps (sudo) for libnss3 etc.
 node tests/renju-e2e.mjs
 ```
 
