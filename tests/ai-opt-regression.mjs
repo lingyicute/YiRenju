@@ -1,5 +1,5 @@
 /* ai-opt-regression.mjs — 增量加速路径与朴素实现的一致性回归（零依赖）。
-   背景：本轮优化用三处「等价变换」换速度，任何一处若与朴素语义有偏差，都会让 AI 静默走弱：
+   背景：本轮优化用四处「等价变换」换速度，任何一处若与朴素语义有偏差，都会让 AI 静默走弱：
      ① WC 方向势能表（setCell 增量维护的 ±4 同色子数）——必须与逐格扫盘的 winCount 全等；
      ② 补点唯一性：ptsToFiveThrough / isFreeThreeDir / openThreeDir 只枚举 R+1 / -(L+1) 两个偏移；
      ③ 成五下界筛 canFive：winPointsOne/winPointsBoth/fivePoint/blackWinPoint 跳过不可能成五的点；
