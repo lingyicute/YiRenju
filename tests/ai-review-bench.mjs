@@ -46,7 +46,7 @@ if(process.argv.includes('--match')){
    b[m.x][m.y]=p;hist.push([m.x,m.y,p]);
    if(p===1){const rule=oracle(b,m.x,m.y);if(rule!=='ok'&&rule!=='win'){result={winner:1-which,reason:'black foul '+rule};break;}}
    if(won(b,m.x,m.y,p)){result={winner:which,reason:'five'};break;}
-   if(hist.length===225){result={winner:null,reason:'draw'};break;}p=3-p;
+   p=3-p;
   }
   result??={winner:null,reason:'120-ply cap, not adjudicated draw'};
   const g={opening:o,patchedColour:swap===1?'black':'white',...result,plies:hist.length,
