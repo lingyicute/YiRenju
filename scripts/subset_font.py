@@ -89,17 +89,17 @@ def download(url, path):
         atomic_write(path, r.read(), binary=True)
 
 
-def make_font_face(b64, full_mb, woff_kb, b64_kb, count, mode):
+def make_font_face(b64, full_mb, full_fmt, woff_kb, b64_kb, count, mode):
     return (
         "/* ===== Nebulove 子集（内嵌，离线可用）=====\n"
         "   由 scripts/subset_font.py 生成：只保留本页会用到的 %d 个字形（%s 模式）。\n"
-        "   %.2f MB woff2 → %.1f KB woff2（base64 后 %.1f KB），随页面一起加载、无网络请求。 ===== */\n"
+        "   %.2f MB %s → %.1f KB woff2（base64 后 %.1f KB），随页面一起加载、无网络请求。 ===== */\n"
         '@font-face {\n'
         "  font-family: 'Nebulove';\n"
         '  src: url("data:font/woff2;base64,%s") format("woff2");\n'
         "  font-weight: normal;\n"
         "  font-style: normal;\n"
-        "}" % (count, mode, full_mb, woff_kb, b64_kb, b64)
+        "}" % (count, mode, full_mb, full_fmt, woff_kb, b64_kb, b64)
     )
 
 
@@ -169,7 +169,8 @@ def main():
     print("子集文件：%s" % keep)
 
     b64 = base64.b64encode(wofl).decode("ascii")
-    new_face = make_font_face(b64, os.path.getsize(ttf) / 1024 / 1024, len(wofl) / 1024, len(b64) / 1024, len(covered), mode)
+    full_fmt = os.path.splitext(ttf)[1].lstrip(".").lower() or "woff2"
+    new_face = make_font_face(b64, os.path.getsize(ttf) / 1024 / 1024, full_fmt, len(wofl) / 1024, len(b64) / 1024, len(covered), mode)
     new_html, n = FONT_FACE_RE.subn(lambda _: new_face, html, count=1)
     if new_html == html:
         print("页面已经是目标内容，未改动。")
