@@ -1352,15 +1352,11 @@ function aiChooseRaw(p){
   /* 能赢先赢 */
   const wp=p===WHITE?fivePoint(WHITE):blackWinPoint();
   if(wp)return wp;
-  /* 中等及以上：不允许随机放弃唯一的合法必挡点。对方已有两个成五点（活四/双杀）时堵不住，
-     但每一手都是一步败，搜索得到的全是同分，同分随机会走到毫不相干的点上：与简单档一样任堵其一 */
-  if(mode!=='ai-easy'){
-    const opWins=winPointsAll(op);
-    if(opWins.length===1&&isLegalMoveAt(p,opWins[0].x,opWins[0].y))return opWins[0];
-    if(opWins.length>=2){
-      const b=opWins.filter(w=>isLegalMoveAt(p,w.x,w.y));
-      if(b.length)return b[(Math.random()*b.length)|0];
-    }
+  /* 全难度：对方已有成五点时必挡；活四/双杀堵不住也任堵其一合法点，避免搜索同分随机乱走 */
+  const opWins=winPointsAll(op);
+  if(opWins.length){
+    const b=opWins.filter(w=>isLegalMoveAt(p,w.x,w.y));
+    if(b.length)return b.length===1?b[0]:b[(Math.random()*b.length)|0];
   }
   /* 困难及专家：VCT 给出攻击/防守提示，统一交给主搜索验证，而非直接认定必胜。 */
   if(VCT_ENABLED&&(mode==='ai-hard'||mode==='ai-expert')){
@@ -1376,13 +1372,6 @@ function aiChooseRaw(p){
     vctAborted=false;
   }
   if(mode==='ai-easy'){
-    /* 对方成五点必挡；双杀点任堵其一（守不住也挣扎一下） */
-    const ow=winPointsAll(op);
-    if(ow.length===1&&isLegalMoveAt(p,ow[0].x,ow[0].y))return ow[0];
-    if(ow.length>=2){
-      const b=ow.filter(w=>isLegalMoveAt(p,w.x,w.y));
-      if(b.length)return b[(Math.random()*b.length)|0];
-    }
     /* 静态分加权落子：攻方估价+守方估价的八成，越强的点越容易被选中，但并不保证 */
     let near=legalCandidatePoints(p,candidates(1));
     if(!near.length)near=legalCandidatePoints(p,candidates(2));
