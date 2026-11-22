@@ -39,12 +39,12 @@ html{-webkit-text-size-adjust:100%}
 :root{--acc:#a78bfa;--acc-deep:#6a54c8} /* 兜底：accent 规则失效时降级为紫色 */
 [data-accent="purple"]{--acc:#a78bfa;--acc-deep:#6a54c8}
 [data-accent="blue"]{--acc:#82aaff;--acc-deep:#3f63c0}
-[data-accent="teal"]{--acc:#5edfd0;--acc-deep:#0f7a6e}
+[data-accent="teal"]{--acc:#5edfd0;--acc-deep:#0d7569}
 [data-accent="green"]{--acc:#6fdc8c;--acc-deep:#1e7a3c}
 [data-accent="yellow"]{--acc:#ecc64f;--acc-deep:#7d660d}
 [data-accent="orange"]{--acc:#f6ad7b;--acc-deep:#a04d08}
 [data-accent="pink"]{--acc:#f17bb0;--acc-deep:#b02e6e}
-[data-accent="red"]{--acc:#ef6f6f;--acc-deep:#c03230}
+[data-accent="red"]{--acc:#f27474;--acc-deep:#c03230}
 
 html[data-theme="light"]{
   color-scheme:light;
@@ -403,7 +403,7 @@ const LS={
   },
   set(k,v){try{localStorage.setItem('yirenju.'+k,JSON.stringify(v));}catch(e){}}
 };
-const ACCENTS={purple:'#a78bfa',blue:'#82aaff',teal:'#5edfd0',green:'#6fdc8c',yellow:'#ecc64f',orange:'#f6ad7b',pink:'#f17bb0',red:'#ef6f6f'};
+const ACCENTS={purple:'#a78bfa',blue:'#82aaff',teal:'#5edfd0',green:'#6fdc8c',yellow:'#ecc64f',orange:'#f6ad7b',pink:'#f17bb0',red:'#f27474'};
 /* 色名只出现在色块的 title / aria-label 里（浏览器提示与读屏播报，不经页面字体渲染）：
    写成转义序列，源码里不出现这些字，内嵌字体子集就不必为它们加字形 */
 const ACCENT_NAME={purple:'\u7d2b\u8272',blue:'\u84dd\u8272',teal:'\u9752\u8272',green:'\u7eff\u8272',yellow:'\u9ec4\u8272',orange:'\u6a59\u8272',pink:'\u7c89\u8272',red:'\u7ea2\u8272'};
@@ -1541,7 +1541,7 @@ function recIn(bkt,k){const v=bkt[k];return (isPlainObj(v)&&Number.isInteger(v.w
 function recOf(k){return recIn(humanP===BLACK?records.b:records.w,k);}
 
 /* 与 CSS 中 --acc-deep 保持一致的深色调（浅色主题主按钮/容器用） */
-const ACC_DEEP={purple:'#6a54c8',blue:'#3f63c0',teal:'#0f7a6e',green:'#1e7a3c',yellow:'#7d660d',orange:'#a04d08',pink:'#b02e6e',red:'#c03230'};
+const ACC_DEEP={purple:'#6a54c8',blue:'#3f63c0',teal:'#0d7569',green:'#1e7a3c',yellow:'#7d660d',orange:'#a04d08',pink:'#b02e6e',red:'#c03230'};
 
 function applyTheme(t){document.documentElement.dataset.theme=t;settings.theme=t;LS.set('settings',settings);refreshPalette();}
 function applyAccent(a){if(!isAccent(a))return;document.documentElement.dataset.accent=a;settings.accent=a;LS.set('settings',settings);refreshPalette();}
