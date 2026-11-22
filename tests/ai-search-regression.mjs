@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 const html=readFileSync(process.argv[2]||new URL('../index.html',import.meta.url),'utf8');
 const src=html.slice(html.indexOf('/*CORE_START*/'),html.indexOf('/*CORE_END*/'));
 function run(body){return new Function('Date','Math',src+'\n'+body)({now:()=>1000},Object.assign(Object.create(Math),{random:()=>0.99}));}
-let failed=0;
-function test(name,fn){try{fn();console.log('PASS',name);}catch(e){failed++;console.error('FAIL',name,e.message);}}
+let passed=0,failed=0;
+function test(name,fn){try{fn();passed++;console.log('PASS',name);}catch(e){failed++;console.error('FAIL',name,e.message);}}
 const rootSetup=`
 mode='ai-hard'; AI_CFG['ai-hard']={d:[2,4],t:1200,w:2};
 const A={x:7,y:7},B={x:7,y:8};
@@ -89,5 +89,5 @@ test('aiChooseRaw resets stale searchPly before iterative deepening',()=>{
   return {seen,after:searchPly};`);
   assert.deepEqual(ply,{seen:1,after:0});
 });
-console.log(`\n${7-failed} passed, ${failed} failed`);
+console.log(`\n${passed} passed, ${failed} failed`);
 process.exitCode=failed?1:0;
