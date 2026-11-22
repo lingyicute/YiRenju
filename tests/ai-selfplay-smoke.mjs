@@ -1,4 +1,4 @@
-/* ai-selfplay-smoke.mjs — 真实 aiChoose 迭代加深路径对弈冒烟（hard 黑 vs expert 白）。
+/* ai-selfplay-smoke.mjs — 真实 aiChoose 迭代加深路径对弈冒烟（G1 hard 黑 vs expert 白，G2 expert 自弈）。
    每次 aiChoose 均校验：返回点合法(含禁手)、用时、终局判定正确。 */
 import {readFileSync,existsSync} from 'fs';
 /* SMOKE_MS：CI 里把每手预算压到几百毫秒，仍走完整 aiChoose 路径
@@ -46,7 +46,7 @@ const budget=t=>t<=4200; /* expert 3s + 宽限; hard 1.2s + 宽限 → 统一宽
   const g=playGame('ai-hard','ai-expert');
   console.log(`G1 hard(黑) vs expert(白): 结果=${g.result} 手数=${g.hist.length} 黑均时=${Math.round(g.times[BLACK].reduce((a,b)=>a+b,0)/g.times[BLACK].length)}ms 白均时=${Math.round(g.times[WHITE].reduce((a,b)=>a+b,0)/g.times[WHITE].length)}ms 白最大=${Math.max(...g.times[WHITE])}ms`);
   ck('G1 每手均在预算内',g.times[BLACK].concat(g.times[WHITE]).every(budget));
-  ck('G1 分出胜负或下满',g.result!=='nomove');
+  ck('G1 全程未出现无着可下',g.result!=='nomove'); /* 120 手封顶未分胜负也算通过 */
 }
 {
   const g=playGame('ai-expert','ai-expert');
