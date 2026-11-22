@@ -533,6 +533,9 @@ ok('无效主题/配色回落到合法值',await page.evaluate(()=>{
   return (d.theme==='dark'||d.theme==='light')&&d.accent==='purple'
     &&['dark','light'].includes(JSON.parse(localStorage.getItem('yirenju.settings')).theme);
 }));
+await page.evaluate(()=>{history.length=0;localStorage.setItem('yirenju.settings',JSON.stringify({sound:'false'}));});
+await page.reload();await page.waitForTimeout(250);
+ok('非布尔 sound 归一化为开启',await page.evaluate(()=>settings.sound===true&&document.getElementById('soundText').textContent.includes('开')));
 await page.evaluate(()=>{history.length=0;localStorage.setItem('yirenju.settings',JSON.stringify({mode:'constructor'}));});
 await page.reload();await page.waitForTimeout(250);
 ok('原型继承键不能作为对局模式',await page.evaluate(()=>mode==='ai-easy'&&settings.mode==='ai-easy'
@@ -682,6 +685,10 @@ ok('数组战绩桶与负数小数计数被归一化',await page.evaluate(()=>{
   const bkt={easy:{w:-2,l:1},medium:{w:1.5,l:0}};
   const r1=recIn(bkt,'easy'),r2=recIn(bkt,'medium');
   return notArr&&r1.w===0&&r1.l===0&&r2.w===0&&r2.l===0;
+}));
+ok('单桶损坏的战绩保留完好桶且不嵌套 b/w 键',await page.evaluate(()=>{
+  const p=parseRecords({b:{easy:{w:3,l:1}},w:[]});
+  return p.b.easy.w===3&&p.b.easy.l===1&&!('b' in p.b)&&!('w' in p.b)&&!Array.isArray(p.w);
 }));
 
 console.log(`\n${pass} passed, ${fail} failed`);
