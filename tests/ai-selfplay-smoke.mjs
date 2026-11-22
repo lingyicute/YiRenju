@@ -52,6 +52,7 @@ const budget=t=>t<=4200; /* expert 3s + 宽限; hard 1.2s + 宽限 → 统一宽
   const g=playGame('ai-expert','ai-expert');
   console.log(`G2 expert 自弈: 结果=${g.result} 手数=${g.hist.length} 黑均时=${Math.round(g.times[BLACK].reduce((a,b)=>a+b,0)/g.times[BLACK].length)}ms 白均时=${Math.round(g.times[WHITE].reduce((a,b)=>a+b,0)/g.times[WHITE].length)}ms`);
   ck('G2 每手均在预算内',g.times[BLACK].concat(g.times[WHITE]).every(budget));
+  ck('G2 全程未出现无着可下',g.result!=='nomove');
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);
