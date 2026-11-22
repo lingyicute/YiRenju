@@ -10,13 +10,13 @@ if(!existsSync(pageUrl)){console.error('找不到 index.html（请在仓库根�
 const html=readFileSync(pageUrl,'utf8');
 let src=html.slice(html.indexOf('/*CORE_START*/'),html.indexOf('/*CORE_END*/'));
 if(SMOKE_MS){
-  const before=src;
-  src=src.replace(/'ai-hard':\{d:\[2,4,6,8\],t:1200,w:12\}/,
-                  `'ai-hard':{d:[2,4,6,8],t:${SMOKE_MS},w:12}`)
-         .replace(/'ai-expert':\{d:\[2,4,6,8,10\],t:3000,w:16\}/,
-                  `'ai-expert':{d:[2,4,6,8,10],t:${SMOKE_MS},w:16}`);
-  if(src===before||!src.includes(`t:${SMOKE_MS}`))
+  const afterHard=src.replace(/'ai-hard':\{d:\[2,4,6,8\],t:1200,w:12\}/,
+                              `'ai-hard':{d:[2,4,6,8],t:${SMOKE_MS},w:12}`);
+  const afterExpert=afterHard.replace(/'ai-expert':\{d:\[2,4,6,8,10\],t:3000,w:16\}/,
+                                      `'ai-expert':{d:[2,4,6,8,10],t:${SMOKE_MS},w:16}`);
+  if(afterHard===src||afterExpert===afterHard)
     throw new Error('SMOKE_MS 补丁失败：AI_CFG 格式已变化，请同步更新本烟测');
+  src=afterExpert;
 }
 const api=new Function(src+`
 return {N,EMPTY,BLACK,WHITE,isWinRun,blackLegality,isLegalMoveAt,aiChoose,winCellsAt,syncCand,setCell,setMode:(m)=>{mode=m;},getBoard:()=>board,setBoard:(b)=>{board=b;syncCand();},zobristInit,hashFromBoard};`)();
