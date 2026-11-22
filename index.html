@@ -1294,7 +1294,6 @@ function negamax(depth,alpha,beta,p,lastX,lastY){
       break;
     }
   }
-  if(searchAborted)return best;   /* 被时间截断的半截结果不写表，否则会污染同代其它结点 */
   /* 胜负分不入表：negamax 的胜负分带 depth*1000 加成，qNode 的按 qd 计（见 qMate），两种约定并存，
      无法用同一种深度归一化存取——旧版按 depth 归一化入表，qNode 的胜负分取回时漂移 ±1000 的整数倍
      （实测：复用表后白方被杀线分值从 -9000080 变为 -8999090，根节点在多条必输着法间排序错误）。
