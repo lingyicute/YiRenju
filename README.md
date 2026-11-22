@@ -54,7 +54,7 @@ It is a **single, self-contained HTML file** with the markup, styles, and game l
   - Two people take turns on the same device. Two-player games are not counted in the stats.
 
 - **↩️ Undo, Restart, and Timer**
-  - Undo with `Z`. Against the AI, undo also takes back the AI's last reply.
+  - Undo with `Z`. Against the AI, undo rewinds to your turn: it usually takes back the AI's reply as well, but right after your winning move it takes back only that move.
   - Restart at any time with `R`. A status panel shows the move number, whose turn it is, and the elapsed time.
 
 - **💾 Resume Unfinished Games**
