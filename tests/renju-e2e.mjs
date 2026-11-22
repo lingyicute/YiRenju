@@ -456,8 +456,9 @@ ok('思考中重开会换新的 Worker',await page.evaluate(()=>{
   const thinking=aiThinking;newGame();   /* 思考中再次重开 */
   return !!w0&&thinking&&aiWorker!==null&&aiWorker!==w0;
 }));
-await page.waitForFunction(()=>history.length===1&&!aiThinking,{timeout:6000});
-ok('换 Worker 后 AI 仍能正常开局',true);
+/* 超时记一条 FAIL 并继续跑后续用例；旧写法 ok(...,true) 恒真，超时则直接抛错中断整个套件 */
+ok('换 Worker 后 AI 仍能正常开局',await page.waitForFunction(()=>history.length===1&&!aiThinking,{timeout:6000})
+  .then(()=>true,()=>false),'len='+(await histLen()));
 await page.evaluate(()=>{newGame();});
 ok('Worker 报错：思考态不卡死，改由主线程落子',await page.evaluate(async()=>{
   const thinking=aiThinking,w=aiWorker;
