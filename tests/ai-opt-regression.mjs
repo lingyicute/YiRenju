@@ -154,7 +154,7 @@ const ck=(label,cond,extra)=>{if(cond)pass++;else{fail++;console.log('FAIL '+lab
 const DIRK=[[1,0],[0,1],[1,1],[1,-1]];
 /* 工程化的小 PRNG：跨机器可复现 */
 let seed=20261012;
-const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x80000000;};
 const key=l=>l.map(m=>m.x*16+m.y).join(',');
 const boardKey=()=>api.getBoard().map(r=>r.join('')).join('');
 
