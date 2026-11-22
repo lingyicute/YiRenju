@@ -1526,8 +1526,11 @@ let humanP=settings.side==='W'?WHITE:BLACK,aiP=3-humanP;
 function DEFREC(){return {easy:{w:0,l:0},medium:{w:0,l:0},hard:{w:0,l:0},expert:{w:0,l:0}};}
 /* 战绩按玩家执子分桶：b=玩家执黑，w=玩家执白；旧平铺结构视为执黑迁移 */
 function parseRecords(r){
-  if(isPlainObj(r)&&isPlainObj(r.b)&&isPlainObj(r.w))return r;
-  return {b:Object.assign(DEFREC(),isPlainObj(r)?r:null),w:DEFREC()};
+  if(!isPlainObj(r))return {b:DEFREC(),w:DEFREC()};
+  if(Object.prototype.hasOwnProperty.call(r,'b')||Object.prototype.hasOwnProperty.call(r,'w')){
+    return {b:Object.assign(DEFREC(),isPlainObj(r.b)?r.b:null),w:Object.assign(DEFREC(),isPlainObj(r.w)?r.w:null)};
+  }
+  return {b:Object.assign(DEFREC(),r),w:DEFREC()};
 }
 let records=parseRecords(LS.get('records',null));
 /* 多个标签页同开时，各页内存里的战绩副本互不知晓，整体回写会抹掉别页刚记下的胜负：
