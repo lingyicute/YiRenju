@@ -203,7 +203,6 @@ for(let g=0;g<14;g++){
   /* 同色过密时 blackLegality 会大量触发禁手，这里保证黑白数量差 ≤1 即可（setCell 已维护表）*/
   POS.push(boardKey());
   const snap=api.getBoard().map(r=>r.slice());
-  const side=placed%2===0?BLACK:WHITE;
 
   /* 每个空点：ptsToFiveThrough / isFreeThreeDir 与朴素实现逐方向一致 */
   let badP5=0,badF3=0,badOpen=0,checked=0;
