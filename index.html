@@ -1704,7 +1704,7 @@ function drawBoard(){
   }
   /* 棋子（最后一手带落子动画） */
   const last=history[history.length-1];
-  const animT=last&&!(reducedMotionMQ&&reducedMotionMQ.matches)?Math.min(1,(now-last.at)/150):1;
+  const animT=last&&last.at!=null&&!(reducedMotionMQ&&reducedMotionMQ.matches)?Math.max(0,Math.min(1,(now-last.at)/150)):1;
   for(const mv of history){
     let scale=1;
     if(mv===last&&animT<1){const t=animT;scale=1+0.5*(1-t)*(1-t);}
@@ -2510,7 +2510,7 @@ function init(){
         if(!isLegalMoveAt(turn,m.x,m.y))throw new Error('corrupt session'); /* 重复落点或黑方禁手 */
         setCell(m.x,m.y,turn);
         if(winCellsAt(m.x,m.y,turn))throw new Error('corrupt session'); /* 已分胜负却标为未终局 */
-        history.push({x:m.x,y:m.y,p:turn,at:0});
+        history.push({x:m.x,y:m.y,p:turn,at:null});
         turn=3-turn;
       }
       turn=history.length%2===0?BLACK:WHITE;
