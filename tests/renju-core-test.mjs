@@ -224,7 +224,7 @@ blank();put([[5,5],[5,6],[5,8],[5,9]],BLACK);
 ck('断四splitScore≥12000',api.splitScore(5,6,0,1,BLACK)>=12000,true);
 /* (aa) 连续四不产生 split 分（由 dirScore 负责） */
 blank();put([[5,5],[5,6],[5,7],[5,8]],BLACK);
-ck('连续四splitScore=0',api.splitScore(5,6,1,0,BLACK),0);
+ck('连续四splitScore=0',api.splitScore(5,6,0,1,BLACK),0);
 /* (ab) 跳三 X.XX 窗口补算≥SPLIT3 */
 blank();put([[5,5],[5,7],[5,8]],BLACK);
 ck('跳三splitScore≥3000',api.splitScore(5,7,0,1,BLACK)>=3000,true);
