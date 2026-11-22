@@ -647,14 +647,6 @@ function winCellsAt(x,y,p){
   return null;
 }
 /* ============ 连珠禁手检测（仅黑棋受约束） ============ */
-/* 沿 (dx,dy) 偏移 o 处的目标，是否与 (x,y) 之间只隔着黑子（保证新形由落子参与形成） */
-function linkedTo(x,y,dx,dy,o,p){
-  const s=Math.sign(o);
-  for(let t=1;t<Math.abs(o);t++){
-    if(board[x+dx*s*t][y+dy*s*t]!==p)return false;
-  }
-  return true;
-}
 /* 沿方向 (dx,dy) 统计：多少个空位补上 p 色子后能形成「经过 (x,y) 的取胜连子」
    （黑棋要求恰好5连，白棋5连及以上）。
    ===== 补点唯一性（本文件多处复用的关键变换）=====

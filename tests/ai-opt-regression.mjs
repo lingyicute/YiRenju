@@ -16,6 +16,11 @@ const html=readFileSync(pageUrl,'utf8');
 const src=html.slice(html.indexOf('/*CORE_START*/'),html.indexOf('/*CORE_END*/'));
 const api=new Function(src+`
 /* ================= 朴素枚举参考（规则以直四/完整递归为准） ================= */
+function linkedTo(x,y,dx,dy,o,p){
+  const s=Math.sign(o);
+  for(let t=1;t<Math.abs(o);t++)if(board[x+dx*s*t][y+dy*s*t]!==p)return false;
+  return true;
+}
 function nWinCount(x,y,dx,dy,p){
   let c=0;
   for(let o=1;o<=4;o++){
