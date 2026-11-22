@@ -2007,7 +2007,7 @@ function initAiWorker(){
     if(a<0||b<0||b<a)return;
     /* 'use strict' 在 CORE_START 之前，切片不含它：补上，引擎在 Worker 里与主线程回退同为严格模式 */
     const wsrc="'use strict';\n"+src.slice(a,b)
-      +'\nself.onmessage=function(e){var d=e.data;if(d&&d.type==="choose"){mode=d.mode;board=d.board;syncCand();self.postMessage({tok:d.tok,mv:aiChoose(d.p)});}};';
+      +'\nself.onmessage=function(e){var d=e.data;if(d&&d.type==="choose"){mode=d.mode;board=d.board;self.postMessage({tok:d.tok,mv:aiChoose(d.p)});}};';
     const url=URL.createObjectURL(new Blob([wsrc],{type:'text/javascript'}));
     aiWorkerUrl=url; /* Worker 构造被 CSP 等拒绝时，catch 里的 dropWorker 也能撤销 URL */
     const w=new Worker(url);
