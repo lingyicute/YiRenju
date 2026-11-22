@@ -51,15 +51,15 @@ def build_subset(chars, ttf_path):
     from fontTools.ttLib import TTFont
     from fontTools.subset import Subsetter, Options
 
-    font = TTFont(ttf_path, recalcTimestamp=False)   # 不写 head.modified，保证同样输入 → 同样字节
-    subsetter = Subsetter(options=Options())
-    subsetter.populate(text="".join(sorted(chars)))
-    subsetter.subset(font)
-    font.flavor = "woff2"
-    buf = io.BytesIO()
-    font.save(buf)
-    data = buf.getvalue()
-    covered = set(font.getBestCmap().keys())
+    with TTFont(ttf_path, recalcTimestamp=False) as font:  # 不写 head.modified，保证同样输入 → 同样字节
+        subsetter = Subsetter(options=Options())
+        subsetter.populate(text="".join(sorted(chars)))
+        subsetter.subset(font)
+        font.flavor = "woff2"
+        buf = io.BytesIO()
+        font.save(buf)
+        data = buf.getvalue()
+        covered = set(font.getBestCmap().keys())
     return data, covered
 
 
