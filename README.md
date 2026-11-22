@@ -187,7 +187,7 @@ node tests/renju-core-test.mjs
 # Transposition-table regression — win/loss scores must not drift when the table is reused
 node tests/tt-mate-regression-test.mjs
 
-# Search control regressions (abort/root/guard) — 6 cases, frozen clock, zero dependencies
+# Search control regressions (abort/root/guard) — 7 cases, frozen clock, zero dependencies
 node tests/ai-search-regression.mjs
 
 # Optimisation equivalence regressions — naive reference impls, 14 boards × per-point diff
@@ -210,7 +210,7 @@ node tests/ai-selfplay-smoke.mjs
 # (report only, ~6–7 min at GAMES=1; bump samples with GAMES=3)
 node tests/ai-tournament.mjs
 
-# Browser end-to-end UI tests — 102 assertions (one-time setup required)
+# Browser end-to-end UI tests — 107 assertions (one-time setup required)
 python3 -m http.server 8600     # serve this directory
 npm i --no-save playwright-core # --no-save: keep package.json dependency-free
 npx playwright-core install chromium-headless-shell
