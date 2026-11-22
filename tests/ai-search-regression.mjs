@@ -79,5 +79,15 @@ test('already aborted negamax does not start move generation',()=>{
   negamax(1,-Infinity,Infinity,WHITE,-1,-1);return generated;`);
   assert.equal(r,0);
 });
-console.log(`\n${6-failed} passed, ${failed} failed`);
+test('aiChooseRaw resets stale searchPly before iterative deepening',()=>{
+  const ply=run(rootSetup+`
+  AI_CFG['ai-hard'].d=[2];
+  searchPly=9;
+  let seen=-1;
+  negamax=()=>{seen=searchPly;return 0;};
+  aiChooseRaw(WHITE);
+  return {seen,after:searchPly};`);
+  assert.deepEqual(ply,{seen:1,after:0});
+});
+console.log(`\n${7-failed} passed, ${failed} failed`);
 process.exitCode=failed?1:0;
