@@ -10,7 +10,7 @@ Nebulove 字体子集化 & 内嵌（方式与 YiMines 一致）
   python3 scripts/subset_font.py --all-text          # 保守模式：文件里出现的字符全收
   python3 scripts/subset_font.py --extra-chars glyphs.txt
 """
-import argparse, base64, io, os, re, sys, tempfile, urllib.request
+import argparse, base64, hashlib, io, os, re, sys, tempfile, urllib.request
 FONT_URL = "https://raw.githubusercontent.com/lingyicute/Nebulove/main/Nebulove.woff2"
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_HTML = os.path.join(os.path.dirname(HERE), "index.html")
@@ -131,7 +131,14 @@ def main():
     mode = "全文本" if args.all_text else "可渲染文本"
     print("可渲染字符：%d 个（%s）" % (len(chars), mode))
 
-    ttf = args.ttf or os.path.join(tempfile.gettempdir(), "Nebulove.woff2")
+    if args.ttf:
+        ttf = args.ttf
+    elif args.font_url == FONT_URL:
+        ttf = os.path.join(tempfile.gettempdir(), "Nebulove.woff2")
+    else:
+        tag = hashlib.sha256(args.font_url.encode("utf-8")).hexdigest()[:8]
+        ext = os.path.splitext(args.font_url.split("?", 1)[0])[1] or ".woff2"
+        ttf = os.path.join(tempfile.gettempdir(), "Nebulove-%s%s" % (tag, ext))
     if args.ttf:
         if not os.path.exists(ttf):
             sys.exit("找不到本地字体文件：%s" % ttf)
