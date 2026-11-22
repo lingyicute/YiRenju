@@ -137,7 +137,8 @@ def main():
         ttf = os.path.join(tempfile.gettempdir(), "Nebulove.woff2")
     else:
         tag = hashlib.sha256(args.font_url.encode("utf-8")).hexdigest()[:8]
-        ext = os.path.splitext(args.font_url.split("?", 1)[0])[1] or ".woff2"
+        clean_url = args.font_url.split("#", 1)[0].split("?", 1)[0]
+        ext = os.path.splitext(clean_url)[1] or ".woff2"
         ttf = os.path.join(tempfile.gettempdir(), "Nebulove-%s%s" % (tag, ext))
     if args.ttf:
         if not os.path.exists(ttf):
